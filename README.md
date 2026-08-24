@@ -60,7 +60,7 @@ The import script reuses the CIPP app registration already set up for the CIPP M
 
 ## Rollout order
 
-`manifest.json` assigns every policy a wave. Configuration must remediate devices before compliance evaluates them. Never assume compliance is report-only: if an existing Conditional Access policy requires a compliant device, a noncompliant result can block access.
+`manifest.cipp` assigns every policy a wave. Its non-JSON extension deliberately prevents CIPP's Community Repository catalog from treating the rollout manifest as an Intune policy. Configuration must remediate devices before compliance evaluates them. Never assume compliance is report-only: if an existing Conditional Access policy requires a compliant device, a noncompliant result can block access.
 
 **Wave 1 — establish controls and telemetry.** Defender AV, Windows Firewall and **ASR in audit mode**. Start with a representative pilot, check conflicts, then expand.
 
@@ -113,7 +113,7 @@ Still intentionally **out of scope**: Windows Update rings/feature-update policy
 | `validate.py` | Validate Graph properties, compliance actions, current CIPP setting IDs/options, deprecations, overlap and tenant scaffolding. Use `--refresh` before release/import. |
 | `build.py` | Rebuild atomically from the pinned OpenIntuneBaseline revision and reapply local safety overrides. `--plain` drops endpoint-security template linkage. |
 | `Import-CippIntuneTemplates.ps1` | Bulk-import to CIPP. Dry run by default; duplicate-safe `-Execute`; `-ExistingAction Skip` resumes a partial run; `-Prefix` and `-Only` scope imports. |
-| `manifest.json` | Maps each file to its CIPP template type and rollout wave. |
+| `manifest.cipp` | Maps each file to its CIPP template type and rollout wave; excluded from CIPP's JSON policy catalog. |
 
 **If an endpoint-security policy is rejected on deploy:** first capture and review the Graph error. As a fallback, `python3 build.py --plain` detaches endpoint-security template linkage and changes delivery to MDM-only Settings Catalog. The CSP values remain the same, but Microsoft Defender security-management targeting no longer applies. Revalidate and retry only the failed file.
 

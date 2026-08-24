@@ -3,7 +3,7 @@
     Bulk-import this baseline's policies into CIPP as Intune Templates.
 
 .DESCRIPTION
-    Reads manifest.json and POSTs each policy to CIPP's AddIntuneTemplate endpoint, so the
+    Reads manifest.cipp and POSTs each policy to CIPP's AddIntuneTemplate endpoint, so the
     16 policies land as reusable templates in one pass instead of 16 rounds of copy-paste
     through the CIPP UI.
 
@@ -112,8 +112,8 @@ $apiBase = ($settings.CippMcpUrl -replace '(?i)/api/ExecMcp/?$', '')
 if ($apiBase -notmatch '^https://') { throw "Could not derive an HTTPS CIPP API base from '$($settings.CippMcpUrl)'." }
 $endpoint = "$apiBase/api/AddIntuneTemplate"
 
-$manifestPath = Join-Path $scriptRoot 'manifest.json'
-if (-not (Test-Path -LiteralPath $manifestPath)) { throw "manifest.json not found next to this script." }
+$manifestPath = Join-Path $scriptRoot 'manifest.cipp'
+if (-not (Test-Path -LiteralPath $manifestPath)) { throw "manifest.cipp not found next to this script." }
 $policies = (Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json).policies
 
 if ($Only) {
