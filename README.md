@@ -2,14 +2,14 @@
 
 Generic, security-focused Intune policy set for import into CIPP as reusable **Intune Templates**. This is the base — clone it into a client-specific version (Lloyds first) once reviewed.
 
-16 policies across Windows, Android Enterprise, iOS/iPadOS and macOS. Every policy is validated before it ships (`python3 validate.py`) and can be bulk-imported in one command.
+17 policies across Windows, Android Enterprise, iOS/iPadOS and macOS. Every policy is validated before it ships (`python3 validate.py`) and can be bulk-imported in one command.
 
 ---
 
 ## Quick start
 
 ```bash
-python3 validate.py --refresh                # validate all 16 against current Graph/CIPP data
+python3 validate.py --refresh                # validate all 17 against current Graph/CIPP data
 pwsh ./Import-CippIntuneTemplates.ps1        # dry run — shows what would be created
 pwsh ./Import-CippIntuneTemplates.ps1 -Execute   # actually create the templates in CIPP
 ```
@@ -50,11 +50,16 @@ The import script reuses the CIPP app registration already set up for the CIPP M
 | `20-macos-sc-filevault.json` | FileVault with recovery key escrow to Intune | 8 |
 | `21-macos-sc-gatekeeper-firewall.json` | Application firewall + Gatekeeper / System Policy Control + XProtect sample submission | 8 |
 
-### Android Enterprise device restrictions — hand-authored
+### Android Enterprise fully managed bundle — hand-authored
 
 | File | Covers |
 |---|---|
 | `30-android-device-restrictions.json` | Blocks sideloading, developer options, USB file transfer, external media and screen capture; enables network recovery and automatic app updates on any network; enforces Play Protect and lockout-to-wipe |
+| `31-android-launcher-branding.json` | Makes Microsoft Launcher the managed home experience for single-user fully managed devices; applies and locks a tenant-specific wallpaper; disables the personalised feed and locks dock/search placement |
+
+The Android bundle consists of `30` (security and device behaviour), `31` (single-user launcher and branding), and `02` (compliance, assigned only after configuration is healthy). Keeping them separate means branding can change without reopening the security policy, while compliance remains gated behind the pilot. `31` deliberately contains no app IDs or assignments because those identifiers are tenant-specific.
+
+Before deploying `31`, add Microsoft Launcher through Managed Google Play and assign it as **Required** to the same pilot group. Create a tenant-scoped CIPP custom variable named `androidwallpaperurl` whose value is a direct, publicly reachable HTTPS image URL. CIPP replaces `%androidwallpaperurl%` at deployment, so the template remains portable and the Lloyds URL does not need to be hard-coded in GitHub. Use at least 1080×1920 for phones or 1920×1080 for landscape tablets. Shared/dedicated kiosk devices must use Managed Home Screen instead of this Launcher policy.
 
 ---
 
@@ -64,12 +69,13 @@ The import script reuses the CIPP app registration already set up for the CIPP M
 
 **Wave 1 — establish controls and telemetry.** Defender AV, Windows Firewall and **ASR in audit mode**. Start with a representative pilot, check conflicts, then expand.
 
-**Wave 2 — remediate with a pilot group first.** BitLocker, Windows Hello, OS hardening, Credential Guard, Windows LAPS, macOS FileVault/Gatekeeper and Android restrictions. Each can visibly change behavior or depends on hardware:
+**Wave 2 — remediate with a pilot group first.** BitLocker, Windows Hello, OS hardening, Credential Guard, Windows LAPS, macOS FileVault/Gatekeeper, Android restrictions and Android Launcher branding. Each can visibly change behavior or depends on hardware:
 - **BitLocker** — confirm the recovery key actually lands in Entra ID on a pilot device. A device that encrypts without a retrievable key is a support incident waiting to happen.
 - **Credential Guard / HVCI** — needs VBS-capable hardware and can break old kernel-mode drivers. The baseline uses the remotely reversible **without UEFI lock** values.
 - **Windows LAPS** — confirm a local administrator account exists, passwords escrow to Entra ID, and recovery roles are least-privileged.
 - **OS hardening** (96 settings) — explicitly test legacy NAS/scanners because the minimum SMB dialect is 3.0. It also blocks adding/removing provisioning packages after policy applies.
 - **Android restrictions** — several are user-visible; check them against how the handhelds are actually used.
+- **Android Launcher and branding** — single-user fully managed devices only. Assign Microsoft Launcher as Required and define the tenant's `androidwallpaperurl` CIPP variable before deploying the policy.
 
 **Wave 3 — compliance after remediation is healthy.** Set supported OS/build and patch floors, verify configuration success, create notification templates, and review Conditional Access. Compliance uses a seven-day migration grace. Shorten it only after the estate is stable.
 
@@ -90,7 +96,7 @@ These controls need tenant and fleet data before wave 3:
 - **Android recovery/data posture** — the network escape hatch is enabled so a kiosk can recover if its managed network changes, and app updates use any network. For higher-security devices that leave site, disable the escape hatch only if resilient managed connectivity exists; use `wiFiOnly` if cellular cost outweighs delayed app patching.
 - **Compliance notification templates** — the block actions use an empty `notificationTemplateId` (no email). Add a notification action once a message template exists in the target tenant; referencing a template GUID that doesn't exist there will fail the deploy.
 
-Still intentionally **out of scope**: Windows Update rings/feature-update policy, Defender for Endpoint onboarding and tamper protection, macOS update/Defender PPPC prerequisites, iOS restrictions, enrollment restrictions, and App Protection/MAM for BYOD. Treat these as the next layer rather than assuming this set is a complete Intune architecture.
+Still intentionally **out of scope**: Windows Update rings/feature-update policy, Defender for Endpoint onboarding and tamper protection, macOS update/Defender PPPC prerequisites, iOS restrictions, enrollment restrictions, Managed Google Play app creation/assignment, tenant-specific kiosk app allowlists, and App Protection/MAM for BYOD. Treat these as the next layer rather than assuming this set is a complete Intune architecture.
 
 ---
 

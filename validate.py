@@ -17,6 +17,9 @@ Checks performed:
   5. every Settings Catalog definition and choice exists in CIPP's current catalog
   6. generated Settings Catalog files carry no tenant-specific Graph scaffolding
   7. no unexpected setting overlap exists between separate policies
+  8. the rollout manifest covers every policy exactly once and contains no orphan entries
+  9. CIPP replacement tokens are explicitly allowlisted
+ 10. separate hand-authored policies for the same Graph resource do not configure the same setting
 
 Run:  python3 validate.py
       python3 validate.py --refresh   # force fresh Microsoft/CIPP schema data
@@ -51,7 +54,12 @@ HAND_AUTHORED = {
     "03-compliance-ios.json": "intune-deviceconfig-ioscompliancepolicy",
     "04-compliance-macos.json": "intune-deviceconfig-macoscompliancepolicy",
     "30-android-device-restrictions.json": "intune-deviceconfig-androiddeviceownergeneraldeviceconfiguration",
+    "31-android-launcher-branding.json": "intune-deviceconfig-androiddeviceownergeneraldeviceconfiguration",
 }
+
+ALLOWED_CIPP_TOKENS = {"androidwallpaperurl"}
+PASSTHROUGH_PERCENT_VARS = {"systemroot"}
+POLICY_IDENTITY_FIELDS = {"@odata.type", "displayName", "description", "roleScopeTagIds"}
 
 # Present on the payload but not in the resource's own property table: the type
 # discriminator, inherited naming fields, and the scheduledActionsForRule relationship
@@ -147,6 +155,7 @@ def check_compliance_actions(filename, data):
 
 def check_hand_authored(refresh=False, max_age_hours=24):
     problems = []
+    property_owners = {}
     for filename, resource in sorted(HAND_AUTHORED.items()):
         path = HERE / filename
         if not path.exists():
@@ -171,6 +180,16 @@ def check_hand_authored(refresh=False, max_age_hours=24):
         else:
             print(f"  ok  {filename}  ({len(data)} properties, {checked} enums verified)")
         problems += check_compliance_actions(filename, data)
+
+        for prop in set(data) - POLICY_IDENTITY_FIELDS:
+            property_owners.setdefault((resource, prop), set()).add(filename)
+
+    for (resource, prop), files in sorted(property_owners.items()):
+        if len(files) > 1:
+            problems.append(
+                f"unexpected cross-policy property overlap for {resource}.{prop}: "
+                f"{', '.join(sorted(files))}"
+            )
     return problems
 
 
@@ -270,6 +289,59 @@ def check_generated(catalog):
     return problems
 
 
+def check_manifest_and_tokens():
+    problems = []
+    manifest_path = HERE / "manifest.cipp"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"manifest.cipp: cannot read valid JSON - {exc}"]
+
+    entries = manifest.get("policies")
+    if not isinstance(entries, list):
+        return ["manifest.cipp: policies must be an array"]
+
+    listed = [entry.get("file") for entry in entries if isinstance(entry, dict)]
+    duplicates = sorted({name for name in listed if name and listed.count(name) > 1})
+    if duplicates:
+        problems.append(f"manifest.cipp: duplicate policy entries: {duplicates}")
+
+    actual = {path.name for path in HERE.glob("[0-9][0-9]-*.json")}
+    listed_set = {name for name in listed if isinstance(name, str)}
+    missing = sorted(actual - listed_set)
+    orphaned = sorted(listed_set - actual)
+    if missing:
+        problems.append(f"manifest.cipp: policy files not listed: {missing}")
+    if orphaned:
+        problems.append(f"manifest.cipp: entries without policy files: {orphaned}")
+
+    allowed_types = {"Catalog", "Device", "deviceCompliancePolicies"}
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            problems.append(f"manifest.cipp: entry {index} is not an object")
+            continue
+        if entry.get("templateType") not in allowed_types:
+            problems.append(
+                f"manifest.cipp: {entry.get('file')}: unsupported templateType {entry.get('templateType')!r}"
+            )
+        if entry.get("assignOrder") not in {1, 2, 3, 4}:
+            problems.append(
+                f"manifest.cipp: {entry.get('file')}: assignOrder must be 1, 2, 3, or 4"
+            )
+
+    token_pattern = re.compile(r"%([a-zA-Z][a-zA-Z0-9_-]*)%")
+    for path in sorted(HERE.glob("[0-9][0-9]-*.json")):
+        tokens = {match.lower() for match in token_pattern.findall(path.read_text(encoding="utf-8"))}
+        unknown = sorted(tokens - ALLOWED_CIPP_TOKENS - PASSTHROUGH_PERCENT_VARS)
+        if unknown:
+            problems.append(f"{path.name}: unapproved CIPP replacement token(s): {unknown}")
+
+    if not problems:
+        print(f"  ok  manifest.cipp  ({len(actual)} policies, no orphans or duplicate entries)")
+        print(f"  ok  CIPP replacement tokens  ({', '.join(sorted(ALLOWED_CIPP_TOKENS))})")
+    return problems
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--refresh", action="store_true", help="force fresh Microsoft and CIPP schema data")
@@ -285,6 +357,9 @@ def main():
     catalog = cipp_catalog(args.refresh, args.max_cache_age_hours)
     print(f"  current CIPP catalog: {len(catalog)} definitions")
     problems += check_generated(catalog)
+
+    print("\nBundle integrity:")
+    problems += check_manifest_and_tokens()
 
     if problems:
         print(f"\n{len(problems)} problem(s):", file=sys.stderr)

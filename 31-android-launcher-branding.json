@@ -1,0 +1,17 @@
+{
+  "@odata.type": "#microsoft.graph.androidDeviceOwnerGeneralDeviceConfiguration",
+  "displayName": "Baseline - Android Enterprise (Fully Managed) - Launcher and Branding",
+  "description": "Microsoft Launcher configuration for single-user, corporate-owned fully managed Android devices. Makes Launcher the managed home experience, applies the tenant-specific wallpaper image, prevents wallpaper and launcher-layout changes, disables the personalised feed, keeps the dock visible, and places search at the bottom. Before deployment, assign Microsoft Launcher as a Required Managed Google Play app and define the CIPP custom variable androidwallpaperurl as a direct publicly reachable HTTPS image URL.",
+  "roleScopeTagIds": [
+    "0"
+  ],
+  "microsoftLauncherConfigurationEnabled": true,
+  "microsoftLauncherCustomWallpaperEnabled": true,
+  "microsoftLauncherCustomWallpaperImageUrl": "%androidwallpaperurl%",
+  "microsoftLauncherCustomWallpaperAllowUserModification": false,
+  "microsoftLauncherFeedEnabled": false,
+  "microsoftLauncherFeedAllowUserModification": false,
+  "microsoftLauncherDockPresenceConfiguration": "show",
+  "microsoftLauncherDockPresenceAllowUserModification": false,
+  "microsoftLauncherSearchBarPlacementConfiguration": "bottom"
+}

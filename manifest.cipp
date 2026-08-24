@@ -112,6 +112,14 @@
       "note": "Several restrictions are user-visible. Network escape is enabled to prevent kiosk stranding; disable it for higher-security/off-site fleets only when resilient managed connectivity exists. App updates are allowed on any network and may use cellular data."
     },
     {
+      "file": "31-android-launcher-branding.json",
+      "templateType": "Device",
+      "platform": "Android Enterprise (COBO - single-user fully managed)",
+      "assignOrder": 2,
+      "prerequisite": "Add Microsoft Launcher from Managed Google Play and assign it as Required to the same pilot group. In CIPP, define the tenant custom variable androidwallpaperurl as a direct publicly reachable HTTPS image URL before deployment.",
+      "note": "Portable branding policy. The wallpaper URL is resolved per tenant by CIPP from %androidwallpaperurl%. Do not assign this policy to dedicated/shared kiosk devices; use Managed Home Screen for those devices."
+    },
+    {
       "file": "12-win-sc-asr-rules-enforced.json",
       "templateType": "Catalog",
       "platform": "Windows",
