@@ -1,7 +1,7 @@
 {
   "@odata.type": "#microsoft.graph.androidDeviceOwnerCompliancePolicy",
   "displayName": "Baseline - Android Enterprise (Fully Managed) - Compliance",
-  "description": "Security baseline compliance policy for Android Enterprise corporate-owned fully managed (COBO) and dedicated (COSU) devices. Pending updates do not directly fail compliance because OEM/carrier availability is unreliable; set a client-specific minimum security patch level instead. passwordRequiredType is numericComplex for shared/handheld devices - switch to alphanumeric for personal-style corporate phones.",
+  "description": "Security baseline compliance policy for Android Enterprise corporate-owned, single-user fully managed (COBO) devices. Requires a six-digit complex PIN, encryption, hardware-backed device integrity and Intune app integrity. Pending updates do not directly fail compliance because OEM/carrier availability is unreliable; set a client-specific minimum security patch level instead.",
   "roleScopeTagIds": ["0"],
 
   "passwordRequired": true,

@@ -1,7 +1,7 @@
 {
   "@odata.type": "#microsoft.graph.androidDeviceOwnerGeneralDeviceConfiguration",
   "displayName": "Baseline - Android Enterprise (Fully Managed) - Device Restrictions",
-  "description": "Security hardening for Android Enterprise corporate-owned fully managed devices: blocks sideloading, developer options, USB file transfer and screen capture; enforces Play Protect, automatic app updates and lockout-to-wipe; and enables the boot-time network escape hatch so kiosk devices can recover after a managed network change. Disable the escape hatch only for higher-security/off-site fleets that have resilient managed connectivity and accept the recovery risk.",
+  "description": "Security hardening for Android Enterprise corporate-owned, single-user fully managed devices: blocks sideloading, developer options, USB file transfer, external media and screen capture; blocks personal Google accounts; enforces Play Protect, automatic app and system updates, a six-digit complex PIN and lockout-to-wipe. The kiosk-only network escape hatch is disabled.",
   "roleScopeTagIds": ["0"],
 
   "appsAllowInstallFromUnknownSources": false,
@@ -11,7 +11,7 @@
   "appsAutoUpdatePolicy": "always",
 
   "factoryResetBlocked": true,
-  "networkEscapeHatchAllowed": true,
+  "networkEscapeHatchAllowed": false,
 
   "storageBlockUsbFileTransfer": true,
   "storageBlockExternalMedia": true,

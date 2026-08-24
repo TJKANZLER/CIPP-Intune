@@ -21,7 +21,7 @@
     {
       "file": "02-compliance-android-fully-managed.json",
       "templateType": "deviceCompliancePolicies",
-      "platform": "Android Enterprise (COBO/COSU)",
+      "platform": "Android Enterprise (COBO - single-user fully managed)",
       "assignOrder": 3,
       "prerequisite": "Pilot the Android restrictions policy, set a supported OS/minimum security patch level, confirm update behavior, and review Conditional Access before assigning compliance."
     },
@@ -107,9 +107,9 @@
     {
       "file": "30-android-device-restrictions.json",
       "templateType": "Device",
-      "platform": "Android Enterprise (COBO/COSU)",
+      "platform": "Android Enterprise (COBO - single-user fully managed)",
       "assignOrder": 2,
-      "note": "Several restrictions are user-visible. Network escape is enabled to prevent kiosk stranding; disable it for higher-security/off-site fleets only when resilient managed connectivity exists. App updates are allowed on any network and may use cellular data."
+      "note": "Several restrictions are user-visible. The kiosk-only network escape hatch is disabled. App and system updates install automatically; app updates are allowed on any network and may use cellular data."
     },
     {
       "file": "31-android-launcher-branding.json",

@@ -25,7 +25,7 @@ The import script reuses the CIPP app registration already set up for the CIPP M
 | File | Platform | Notes |
 |---|---|---|
 | `01-compliance-windows.json` | Windows 10/11 | Defender + firewall + TPM + BitLocker/Secure Boot attestation |
-| `02-compliance-android-fully-managed.json` | Android Enterprise COBO/COSU | Play Integrity (hardware-backed), encryption, no pending updates |
+| `02-compliance-android-fully-managed.json` | Android Enterprise COBO (single-user fully managed) | Hardware-backed device integrity, encryption, Intune app integrity; pending updates do not directly fail compliance |
 | `03-compliance-ios.json` | iOS/iPadOS | Passcode, jailbreak detection |
 | `04-compliance-macos.json` | macOS | FileVault, firewall, SIP, Gatekeeper |
 
@@ -54,7 +54,7 @@ The import script reuses the CIPP app registration already set up for the CIPP M
 
 | File | Covers |
 |---|---|
-| `30-android-device-restrictions.json` | Blocks sideloading, developer options, USB file transfer, external media and screen capture; enables network recovery and automatic app updates on any network; enforces Play Protect and lockout-to-wipe |
+| `30-android-device-restrictions.json` | Blocks sideloading, developer options, USB file transfer, external media, personal Google accounts and screen capture; disables the kiosk-only network escape hatch; enables automatic app/system updates; enforces Play Protect and lockout-to-wipe |
 | `31-android-launcher-branding.json` | Makes Microsoft Launcher the managed home experience for single-user fully managed devices; applies and locks a tenant-specific wallpaper; disables the personalised feed and locks dock/search placement |
 
 The Android bundle consists of `30` (security and device behaviour), `31` (single-user launcher and branding), and `02` (compliance, assigned only after configuration is healthy). Keeping them separate means branding can change without reopening the security policy, while compliance remains gated behind the pilot. `31` deliberately contains no app IDs or assignments because those identifiers are tenant-specific.
@@ -92,8 +92,8 @@ These controls need tenant and fleet data before wave 3:
 - **`deviceThreatProtectionEnabled`** — `false` everywhere. Only enable per platform once a Mobile Threat Defense connector (Defender for Endpoint) is actually wired up. Enabled without a connector, devices report no signal and fail compliance for the wrong reason.
 - **Windows VBS/HVCI/DMA compliance checks** — `memoryIntegrityEnabled`, `virtualizationBasedSecurityEnabled`, `kernelDmaProtectionEnabled` and `firmwareProtectionEnabled` are all `false`. They're hardware-dependent. Turn them on only after `17-win-sc-credential-guard.json` is proven on the actual hardware, or you will fail every older machine in the fleet.
 - **`gracePeriodHours: 168`** on every compliance block action gives a seven-day migration window. Shorten only after configuration health and user communications are proven.
-- **Android `passwordRequiredType`** is `numericComplex`, which suits shared/handheld devices. Switch to `alphanumeric` for personal-style corporate phones.
-- **Android recovery/data posture** — the network escape hatch is enabled so a kiosk can recover if its managed network changes, and app updates use any network. For higher-security devices that leave site, disable the escape hatch only if resilient managed connectivity exists; use `wiFiOnly` if cellular cost outweighs delayed app patching.
+- **Android password posture** — a six-digit `numericComplex` PIN is required in both the restrictions and compliance policies. Move to `alphanumeric` only if Lloyds explicitly accepts the usability and support cost.
+- **Android recovery/data posture** — the kiosk-only network escape hatch is disabled for this single-user fully managed scope. App updates use any network and may consume cellular data; use `wiFiOnly` if cellular cost outweighs delayed app patching.
 - **Compliance notification templates** — the block actions use an empty `notificationTemplateId` (no email). Add a notification action once a message template exists in the target tenant; referencing a template GUID that doesn't exist there will fail the deploy.
 
 Still intentionally **out of scope**: Windows Update rings/feature-update policy, Defender for Endpoint onboarding and tamper protection, macOS update/Defender PPPC prerequisites, iOS restrictions, enrollment restrictions, Managed Google Play app creation/assignment, tenant-specific kiosk app allowlists, and App Protection/MAM for BYOD. Treat these as the next layer rather than assuming this set is a complete Intune architecture.
