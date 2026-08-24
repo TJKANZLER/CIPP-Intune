@@ -1,0 +1,122 @@
+{
+  "$comment": [
+    "Maps each policy file to the CIPP template type it must be imported as, and the",
+    "order it should be deployed in. templateType values are the ones CIPP itself uses",
+    "(see New-CIPPIntuneTemplate.ps1 in CIPP-API): 'deviceCompliancePolicies' for",
+    "compliance policies, 'Catalog' for Settings Catalog policies, 'Device' for classic",
+    "deviceConfigurations profiles.",
+    "",
+    "assignOrder groups policies into rollout waves. Wave 1 establishes low-risk controls and",
+    "audit telemetry. Wave 2 contains remediating controls that require a pilot. Wave 3 applies",
+    "compliance only after remediation is healthy. Wave 4 replaces ASR audit with enforcement."
+  ],
+  "policies": [
+    {
+      "file": "01-compliance-windows.json",
+      "templateType": "deviceCompliancePolicies",
+      "platform": "Windows",
+      "assignOrder": 3,
+      "prerequisite": "Deploy Windows configuration waves 1 and 2 first, verify BitLocker escrow and device health, set supported OS build ranges, create user notifications, and review any Conditional Access policy that requires compliant devices."
+    },
+    {
+      "file": "02-compliance-android-fully-managed.json",
+      "templateType": "deviceCompliancePolicies",
+      "platform": "Android Enterprise (COBO/COSU)",
+      "assignOrder": 3,
+      "prerequisite": "Pilot the Android restrictions policy, set a supported OS/minimum security patch level, confirm update behavior, and review Conditional Access before assigning compliance."
+    },
+    {
+      "file": "03-compliance-ios.json",
+      "templateType": "deviceCompliancePolicies",
+      "platform": "iOS/iPadOS",
+      "assignOrder": 3,
+      "prerequisite": "Set the supported iOS/iPadOS minimum version, create user notifications, and review Conditional Access before assigning compliance."
+    },
+    {
+      "file": "04-compliance-macos.json",
+      "templateType": "deviceCompliancePolicies",
+      "platform": "macOS",
+      "assignOrder": 3,
+      "prerequisite": "Deploy and verify FileVault, firewall and Gatekeeper first; set a supported macOS minimum version; then review Conditional Access before assigning compliance."
+    },
+    {
+      "file": "10-win-sc-defender-antivirus.json",
+      "templateType": "Catalog",
+      "platform": "Windows",
+      "assignOrder": 1
+    },
+    {
+      "file": "13-win-sc-firewall.json",
+      "templateType": "Catalog",
+      "platform": "Windows",
+      "assignOrder": 1
+    },
+    {
+      "file": "11-win-sc-asr-rules-audit.json",
+      "templateType": "Catalog",
+      "platform": "Windows",
+      "assignOrder": 1,
+      "note": "Audit mode only - reports without blocking. Assign this, not 12, on day one."
+    },
+    {
+      "file": "14-win-sc-bitlocker.json",
+      "templateType": "Catalog",
+      "platform": "Windows",
+      "assignOrder": 2,
+      "note": "Confirm Entra ID recovery-key escrow works on a pilot device first."
+    },
+    {
+      "file": "15-win-sc-windows-hello.json",
+      "templateType": "Catalog",
+      "platform": "Windows",
+      "assignOrder": 2
+    },
+    {
+      "file": "16-win-sc-security-hardening.json",
+      "templateType": "Catalog",
+      "platform": "Windows",
+      "assignOrder": 2,
+      "note": "96 settings including SMB 3.0 minimum dialect and blocking add/remove provisioning-package actions. Split or add exceptions if legacy NAS/scanners or post-enrollment provisioning packages are required."
+    },
+    {
+      "file": "17-win-sc-credential-guard.json",
+      "templateType": "Catalog",
+      "platform": "Windows",
+      "assignOrder": 2,
+      "note": "Requires VBS-capable hardware; can break old kernel-mode drivers. Credential Guard, LSA protection and HVCI are enabled without UEFI lock so rollback remains remote."
+    },
+    {
+      "file": "18-win-sc-laps.json",
+      "templateType": "Catalog",
+      "platform": "Windows",
+      "assignOrder": 2,
+      "note": "Confirm a managed local administrator account exists and that only approved support roles can read LAPS passwords in Entra ID."
+    },
+    {
+      "file": "20-macos-sc-filevault.json",
+      "templateType": "Catalog",
+      "platform": "macOS",
+      "assignOrder": 2
+    },
+    {
+      "file": "21-macos-sc-gatekeeper-firewall.json",
+      "templateType": "Catalog",
+      "platform": "macOS",
+      "assignOrder": 2
+    },
+    {
+      "file": "30-android-device-restrictions.json",
+      "templateType": "Device",
+      "platform": "Android Enterprise (COBO/COSU)",
+      "assignOrder": 2,
+      "note": "Several restrictions are user-visible. Network escape is enabled to prevent kiosk stranding; disable it for higher-security/off-site fleets only when resilient managed connectivity exists. App updates are allowed on any network and may use cellular data."
+    },
+    {
+      "file": "12-win-sc-asr-rules-enforced.json",
+      "templateType": "Catalog",
+      "platform": "Windows",
+      "assignOrder": 4,
+      "prerequisite": "11-win-sc-asr-rules-audit.json has run for 2+ weeks and its Defender reports were reviewed. Unassign 11 when you assign this - both set the same CSPs and will conflict."
+    }
+  ]
+}

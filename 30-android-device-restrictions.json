@@ -1,0 +1,42 @@
+{
+  "@odata.type": "#microsoft.graph.androidDeviceOwnerGeneralDeviceConfiguration",
+  "displayName": "Baseline - Android Enterprise (Fully Managed) - Device Restrictions",
+  "description": "Security hardening for Android Enterprise corporate-owned fully managed devices: blocks sideloading, developer options, USB file transfer and screen capture; enforces Play Protect, automatic app updates and lockout-to-wipe; and enables the boot-time network escape hatch so kiosk devices can recover after a managed network change. Disable the escape hatch only for higher-security/off-site fleets that have resilient managed connectivity and accept the recovery risk.",
+  "roleScopeTagIds": ["0"],
+
+  "appsAllowInstallFromUnknownSources": false,
+  "securityRequireVerifyApps": true,
+  "securityDeveloperSettingsEnabled": false,
+  "appsDefaultPermissionPolicy": "deviceDefault",
+  "appsAutoUpdatePolicy": "always",
+
+  "factoryResetBlocked": true,
+  "networkEscapeHatchAllowed": true,
+
+  "storageBlockUsbFileTransfer": true,
+  "storageBlockExternalMedia": true,
+  "screenCaptureBlocked": true,
+
+  "passwordRequiredType": "numericComplex",
+  "passwordMinimumLength": 6,
+  "passwordMinutesOfInactivityBeforeScreenTimeout": 15,
+  "passwordSignInFailureCountBeforeFactoryReset": 10,
+
+  "googleAccountsBlocked": true,
+  "bluetoothBlockContactSharing": true,
+  "nfcBlockOutgoingBeam": true,
+  "dateTimeConfigurationBlocked": true,
+  "wifiBlockEditPolicyDefinedConfigurations": true,
+
+  "systemUpdateInstallType": "automatic",
+
+  "cameraBlocked": false,
+  "dataRoamingBlocked": false,
+  "bluetoothBlockConfiguration": false,
+  "volumeBlockAdjustment": false,
+  "statusBarBlocked": false,
+  "microphoneForceMute": false,
+  "shareDeviceLocationDisabled": false,
+  "certificateCredentialConfigurationDisabled": false,
+  "securityCommonCriteriaModeEnabled": false
+}

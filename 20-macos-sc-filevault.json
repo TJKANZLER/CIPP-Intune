@@ -1,0 +1,120 @@
+{
+  "name": "Baseline - macOS - FileVault Disk Encryption",
+  "description": "FileVault full-disk encryption with the recovery key escrowed to Intune. The legacy macOS endpoint protection template is deprecated -- Settings Catalog is the only supported path for new FileVault policies. Derived from OpenIntuneBaseline.",
+  "platforms": "macOS",
+  "technologies": "mdm,appleRemoteManagement",
+  "roleScopeTagIds": [
+    "0"
+  ],
+  "templateReference": {
+    "@odata.type": "#microsoft.graph.deviceManagementConfigurationPolicyTemplateReference",
+    "templateId": "",
+    "templateFamily": "none",
+    "templateDisplayName": null,
+    "templateDisplayVersion": null
+  },
+  "settings": [
+    {
+      "@odata.type": "#microsoft.graph.deviceManagementConfigurationSetting",
+      "settingInstance": {
+        "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingCollectionInstance",
+        "settingDefinitionId": "com.apple.mcx.filevault2_com.apple.mcx.filevault2",
+        "settingInstanceTemplateReference": null,
+        "groupSettingCollectionValue": [
+          {
+            "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingValue",
+            "settingValueTemplateReference": null,
+            "children": [
+              {
+                "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                "settingDefinitionId": "com.apple.mcx.filevault2_enable",
+                "settingInstanceTemplateReference": null,
+                "choiceSettingValue": {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingValue",
+                  "settingValueTemplateReference": null,
+                  "value": "com.apple.mcx.filevault2_enable_0",
+                  "children": []
+                }
+              },
+              {
+                "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                "settingDefinitionId": "com.apple.mcx.filevault2_forceenableinsetupassistant",
+                "settingInstanceTemplateReference": null,
+                "choiceSettingValue": {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingValue",
+                  "settingValueTemplateReference": null,
+                  "value": "com.apple.mcx.filevault2_forceenableinsetupassistant_true",
+                  "children": []
+                }
+              },
+              {
+                "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                "settingDefinitionId": "com.apple.mcx.filevault2_recoverykeyrotationinmonths",
+                "settingInstanceTemplateReference": null,
+                "choiceSettingValue": {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingValue",
+                  "settingValueTemplateReference": null,
+                  "value": "com.apple.mcx.filevault2_recoverykeyrotationinmonths_6",
+                  "children": []
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "@odata.type": "#microsoft.graph.deviceManagementConfigurationSetting",
+      "settingInstance": {
+        "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingCollectionInstance",
+        "settingDefinitionId": "com.apple.mcx_com.apple.mcx-fdefilevaultoptions",
+        "settingInstanceTemplateReference": null,
+        "groupSettingCollectionValue": [
+          {
+            "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingValue",
+            "settingValueTemplateReference": null,
+            "children": [
+              {
+                "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                "settingDefinitionId": "com.apple.mcx_dontallowfdedisable",
+                "settingInstanceTemplateReference": null,
+                "choiceSettingValue": {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingValue",
+                  "settingValueTemplateReference": null,
+                  "value": "com.apple.mcx_dontallowfdedisable_true",
+                  "children": []
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "@odata.type": "#microsoft.graph.deviceManagementConfigurationSetting",
+      "settingInstance": {
+        "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingCollectionInstance",
+        "settingDefinitionId": "com.apple.security.fderecoverykeyescrow_com.apple.security.fderecoverykeyescrow",
+        "settingInstanceTemplateReference": null,
+        "groupSettingCollectionValue": [
+          {
+            "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingValue",
+            "settingValueTemplateReference": null,
+            "children": [
+              {
+                "@odata.type": "#microsoft.graph.deviceManagementConfigurationSimpleSettingInstance",
+                "settingDefinitionId": "com.apple.security.fderecoverykeyescrow_location",
+                "settingInstanceTemplateReference": null,
+                "simpleSettingValue": {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationStringSettingValue",
+                  "settingValueTemplateReference": null,
+                  "value": "Your FileVault recovery key is escrowed to Microsoft Intune. If recovery is required, contact your IT support team and provide the device serial number."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

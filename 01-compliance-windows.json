@@ -1,0 +1,49 @@
+{
+  "@odata.type": "#microsoft.graph.windows10CompliancePolicy",
+  "displayName": "Baseline - Windows - Compliance",
+  "description": "Security baseline compliance policy for Windows 10/11. Uses the Graph beta schema (which CIPP deploys against) so the Defender, firewall and TPM checks are available. Hardware-dependent VBS/HVCI/DMA checks are left off by default - see README before enabling.",
+  "roleScopeTagIds": ["0"],
+
+  "passwordRequired": true,
+  "passwordBlockSimple": true,
+  "passwordRequiredToUnlockFromIdle": true,
+  "passwordMinimumLength": 8,
+  "passwordMinutesOfInactivityBeforeLock": 15,
+  "passwordRequiredType": "deviceDefault",
+
+  "storageRequireEncryption": true,
+  "bitLockerEnabled": true,
+  "secureBootEnabled": true,
+  "codeIntegrityEnabled": true,
+  "earlyLaunchAntiMalwareDriverEnabled": true,
+  "tpmRequired": true,
+
+  "activeFirewallRequired": true,
+  "defenderEnabled": true,
+  "rtpEnabled": true,
+  "signatureOutOfDate": true,
+  "antivirusRequired": true,
+  "antiSpywareRequired": true,
+
+  "memoryIntegrityEnabled": false,
+  "virtualizationBasedSecurityEnabled": false,
+  "kernelDmaProtectionEnabled": false,
+  "firmwareProtectionEnabled": false,
+
+  "deviceThreatProtectionEnabled": false,
+  "deviceThreatProtectionRequiredSecurityLevel": "unavailable",
+
+  "scheduledActionsForRule": [
+    {
+      "ruleName": "PasswordRequired",
+      "scheduledActionConfigurations": [
+        {
+          "actionType": "block",
+          "gracePeriodHours": 168,
+          "notificationTemplateId": "",
+          "notificationMessageCCList": []
+        }
+      ]
+    }
+  ]
+}

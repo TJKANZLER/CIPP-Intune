@@ -1,0 +1,38 @@
+{
+  "@odata.type": "#microsoft.graph.macOSCompliancePolicy",
+  "displayName": "Baseline - macOS - Compliance",
+  "description": "Security baseline compliance policy for macOS, including FileVault, the application firewall, System Integrity Protection and Gatekeeper app-source restriction.",
+  "roleScopeTagIds": ["0"],
+
+  "passwordRequired": true,
+  "passwordBlockSimple": true,
+  "passwordMinimumLength": 8,
+  "passwordMinutesOfInactivityBeforeLock": 15,
+  "passwordRequiredType": "deviceDefault",
+
+  "storageRequireEncryption": true,
+  "systemIntegrityProtectionEnabled": true,
+  "gatekeeperAllowedAppSource": "macAppStoreAndIdentifiedDevelopers",
+
+  "firewallEnabled": true,
+  "firewallBlockAllIncoming": false,
+  "firewallEnableStealthMode": true,
+
+  "deviceThreatProtectionEnabled": false,
+  "deviceThreatProtectionRequiredSecurityLevel": "unavailable",
+  "advancedThreatProtectionRequiredSecurityLevel": "unavailable",
+
+  "scheduledActionsForRule": [
+    {
+      "ruleName": "PasswordRequired",
+      "scheduledActionConfigurations": [
+        {
+          "actionType": "block",
+          "gracePeriodHours": 168,
+          "notificationTemplateId": "",
+          "notificationMessageCCList": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "@odata.type": "#microsoft.graph.iosCompliancePolicy",
+  "displayName": "Baseline - iOS/iPadOS - Compliance",
+  "description": "Security baseline compliance policy for iOS/iPadOS. passcodeExpirationDays is deliberately unset - current Microsoft and NIST guidance is not to expire credentials on a schedule (and from Intune 2601 the ceiling is 730 days regardless).",
+  "roleScopeTagIds": ["0"],
+
+  "passcodeRequired": true,
+  "passcodeBlockSimple": true,
+  "passcodeMinimumLength": 6,
+  "passcodeRequiredType": "numeric",
+  "passcodeMinutesOfInactivityBeforeLock": 5,
+  "passcodeMinutesOfInactivityBeforeScreenTimeout": 5,
+  "passcodePreviousPasscodeBlockCount": 5,
+
+  "securityBlockJailbrokenDevices": true,
+
+  "deviceThreatProtectionEnabled": false,
+  "deviceThreatProtectionRequiredSecurityLevel": "unavailable",
+  "advancedThreatProtectionRequiredSecurityLevel": "unavailable",
+  "managedEmailProfileRequired": false,
+
+  "scheduledActionsForRule": [
+    {
+      "ruleName": "PasswordRequired",
+      "scheduledActionConfigurations": [
+        {
+          "actionType": "block",
+          "gracePeriodHours": 168,
+          "notificationTemplateId": "",
+          "notificationMessageCCList": []
+        }
+      ]
+    }
+  ]
+}
