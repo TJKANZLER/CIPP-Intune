@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Reads manifest.cipp and POSTs each policy to CIPP's AddIntuneTemplate endpoint, so the
-    17 policies land as reusable templates in one pass instead of 17 rounds of copy-paste
+    18 policies land as reusable templates in one pass instead of 18 rounds of copy-paste
     through the CIPP UI.
 
     Authentication reuses the CIPP app registration already configured for the CIPP MCP
@@ -39,7 +39,7 @@
 
 .EXAMPLE
     ./Import-CippIntuneTemplates.ps1 -Execute
-    Creates all 17 templates in CIPP under their generic baseline names.
+    Creates all 18 templates in CIPP under their generic baseline names.
 
     .EXAMPLE
     ./Import-CippIntuneTemplates.ps1 -Execute -Prefix 'Lloyds - ' -Only 01-compliance-windows.json

@@ -4,7 +4,8 @@
     "order it should be deployed in. templateType values are the ones CIPP itself uses",
     "(see New-CIPPIntuneTemplate.ps1 in CIPP-API): 'deviceCompliancePolicies' for",
     "compliance policies, 'Catalog' for Settings Catalog policies, 'Device' for classic",
-    "deviceConfigurations profiles.",
+    "deviceConfigurations profiles, 'AppConfiguration' for Android managed app",
+    "configuration policies.",
     "",
     "assignOrder groups policies into rollout waves. Wave 1 establishes low-risk controls and",
     "audit telemetry. Wave 2 contains remediating controls that require a pilot. Wave 3 applies",
@@ -118,6 +119,14 @@
       "assignOrder": 2,
       "prerequisite": "Add Microsoft Launcher from Managed Google Play and assign it as Required to the same pilot group. In CIPP, define the tenant custom variable androidwallpaperurl as a direct publicly reachable HTTPS image URL before deployment.",
       "note": "Portable branding policy. The wallpaper URL is resolved per tenant by CIPP from %androidwallpaperurl%. Do not assign this policy to dedicated/shared kiosk devices; use Managed Home Screen for those devices."
+    },
+    {
+      "file": "32-android-edge-browser.json",
+      "templateType": "AppConfiguration",
+      "platform": "Android Enterprise (COBO - single-user fully managed)",
+      "assignOrder": 2,
+      "prerequisite": "Approve and sync Microsoft Edge from Managed Google Play, assign it as Required to the same pilot group, and define the tenant CIPP custom variable androidedgeappid as that tenant's Microsoft Edge mobile-app object ID before deployment.",
+      "note": "Portable Edge managed-app baseline. Android may still require a one-time user confirmation before Edge becomes the system default browser. Pilot the focused new-tab and password-manager behavior before broad assignment."
     },
     {
       "file": "12-win-sc-asr-rules-enforced.json",

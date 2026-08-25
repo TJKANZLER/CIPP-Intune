@@ -20,6 +20,7 @@ Checks performed:
   8. the rollout manifest covers every policy exactly once and contains no orphan entries
   9. CIPP replacement tokens are explicitly allowlisted
  10. separate hand-authored policies for the same Graph resource do not configure the same setting
+ 11. the embedded Microsoft Edge managed-app payload has the expected package, keys and value types
 
 Run:  python3 validate.py
       python3 validate.py --refresh   # force fresh Microsoft/CIPP schema data
@@ -55,9 +56,10 @@ HAND_AUTHORED = {
     "04-compliance-macos.json": "intune-deviceconfig-macoscompliancepolicy",
     "30-android-device-restrictions.json": "intune-deviceconfig-androiddeviceownergeneraldeviceconfiguration",
     "31-android-launcher-branding.json": "intune-deviceconfig-androiddeviceownergeneraldeviceconfiguration",
+    "32-android-edge-browser.json": "intune-apps-androidmanagedstoreappconfiguration",
 }
 
-ALLOWED_CIPP_TOKENS = {"androidwallpaperurl"}
+ALLOWED_CIPP_TOKENS = {"androidedgeappid", "androidwallpaperurl"}
 PASSTHROUGH_PERCENT_VARS = {"systemroot"}
 POLICY_IDENTITY_FIELDS = {"@odata.type", "displayName", "description", "roleScopeTagIds"}
 
@@ -83,6 +85,23 @@ FORBIDDEN_IN_GENERATED = [
     ("creationSource", "source-tenant provenance"),
     ("#microsoft.graph.assign", "Graph action stub"),
 ]
+
+EDGE_BOOLEAN_SETTINGS = {
+    "DefaultBrowserSettingEnabled",
+    "EdgeNewTabPageLayoutUserSelectable",
+    "EdgeCopilotEnabled",
+    "EdgeDisableShareUsageData",
+    "EdgeMyApps",
+    "HideFirstRunExperience",
+    "EdgeDefaultHTTPS",
+    "SmartScreenEnabled",
+    "SmartScreenPuaEnabled",
+    "PreventSmartScreenPromptOverride",
+    "PasswordManagerEnabled",
+    "BiometricAuthenticationBeforeFilling",
+}
+EDGE_STRING_SETTINGS = {"EdgeNewTabPageLayout": {"focused"}}
+EDGE_INTEGER_SETTINGS = {"ExperimentationAndConfigurationServiceControl": {1}}
 
 
 def cached_download(url, cached, refresh=False, max_age_hours=24):
@@ -153,6 +172,67 @@ def check_compliance_actions(filename, data):
     return problems
 
 
+def check_edge_managed_configuration(filename, data):
+    """Validate the JSON-inside-JSON payload used by Android managed app configuration."""
+    if filename != "32-android-edge-browser.json":
+        return []
+
+    problems = []
+    if data.get("packageId") != "com.microsoft.emmx":
+        problems.append(f"{filename}: packageId must be com.microsoft.emmx")
+    if data.get("targetedMobileApps") != ["%androidedgeappid%"]:
+        problems.append(f"{filename}: targetedMobileApps must contain only %androidedgeappid%")
+    if data.get("profileApplicability") != "androidDeviceOwner":
+        problems.append(f"{filename}: profileApplicability must be androidDeviceOwner")
+
+    try:
+        payload = json.loads(data.get("payloadJson", ""))
+    except (TypeError, json.JSONDecodeError) as exc:
+        return problems + [f"{filename}: payloadJson is not valid embedded JSON - {exc}"]
+
+    if payload.get("kind") != "androidenterprise#managedConfiguration":
+        problems.append(f"{filename}: payloadJson has an invalid kind")
+    if payload.get("productId") != "app:com.microsoft.emmx":
+        problems.append(f"{filename}: payloadJson productId must be app:com.microsoft.emmx")
+
+    settings = payload.get("managedProperty")
+    if not isinstance(settings, list):
+        return problems + [f"{filename}: payloadJson managedProperty must be an array"]
+    keys = [item.get("key") for item in settings if isinstance(item, dict)]
+    duplicates = sorted({key for key in keys if key and keys.count(key) > 1})
+    if duplicates:
+        problems.append(f"{filename}: duplicate Edge managed configuration keys: {duplicates}")
+
+    expected = EDGE_BOOLEAN_SETTINGS | set(EDGE_STRING_SETTINGS) | set(EDGE_INTEGER_SETTINGS)
+    missing = sorted(expected - set(keys))
+    unknown = sorted(set(keys) - expected)
+    if missing:
+        problems.append(f"{filename}: missing Edge managed configuration keys: {missing}")
+    if unknown:
+        problems.append(f"{filename}: unapproved Edge managed configuration keys: {unknown}")
+
+    for item in settings:
+        if not isinstance(item, dict):
+            problems.append(f"{filename}: each managedProperty entry must be an object")
+            continue
+        key = item.get("key")
+        value_fields = set(item) - {"key"}
+        if key in EDGE_BOOLEAN_SETTINGS:
+            if value_fields != {"valueBool"} or not isinstance(item.get("valueBool"), bool):
+                problems.append(f"{filename}: {key} must contain one Boolean valueBool")
+        elif key in EDGE_STRING_SETTINGS:
+            if value_fields != {"valueString"} or item.get("valueString") not in EDGE_STRING_SETTINGS[key]:
+                problems.append(f"{filename}: {key} has an invalid valueString")
+        elif key in EDGE_INTEGER_SETTINGS:
+            value = item.get("valueInteger")
+            if value_fields != {"valueInteger"} or type(value) is not int or value not in EDGE_INTEGER_SETTINGS[key]:
+                problems.append(f"{filename}: {key} has an invalid valueInteger")
+
+    if not problems:
+        print(f"  ok  {filename} embedded Edge payload  ({len(settings)} managed settings)")
+    return problems
+
+
 def check_hand_authored(refresh=False, max_age_hours=24):
     problems = []
     property_owners = {}
@@ -180,6 +260,7 @@ def check_hand_authored(refresh=False, max_age_hours=24):
         else:
             print(f"  ok  {filename}  ({len(data)} properties, {checked} enums verified)")
         problems += check_compliance_actions(filename, data)
+        problems += check_edge_managed_configuration(filename, data)
 
         for prop in set(data) - POLICY_IDENTITY_FIELDS:
             property_owners.setdefault((resource, prop), set()).add(filename)
@@ -315,7 +396,7 @@ def check_manifest_and_tokens():
     if orphaned:
         problems.append(f"manifest.cipp: entries without policy files: {orphaned}")
 
-    allowed_types = {"Catalog", "Device", "deviceCompliancePolicies"}
+    allowed_types = {"AppConfiguration", "Catalog", "Device", "deviceCompliancePolicies"}
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
             problems.append(f"manifest.cipp: entry {index} is not an object")

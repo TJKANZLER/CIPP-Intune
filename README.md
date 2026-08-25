@@ -2,14 +2,14 @@
 
 Generic, security-focused Intune policy set for import into CIPP as reusable **Intune Templates**. This is the base — clone it into a client-specific version (Lloyds first) once reviewed.
 
-17 policies across Windows, Android Enterprise, iOS/iPadOS and macOS. Every policy is validated before it ships (`python3 validate.py`) and can be bulk-imported in one command.
+18 policies across Windows, Android Enterprise, iOS/iPadOS and macOS. Every policy is validated before it ships (`python3 validate.py`) and can be bulk-imported in one command.
 
 ---
 
 ## Quick start
 
 ```bash
-python3 validate.py --refresh                # validate all 17 against current Graph/CIPP data
+python3 validate.py --refresh                # validate all 18 against current Graph/CIPP data
 pwsh ./Import-CippIntuneTemplates.ps1        # dry run — shows what would be created
 pwsh ./Import-CippIntuneTemplates.ps1 -Execute   # actually create the templates in CIPP
 ```
@@ -56,10 +56,13 @@ The import script reuses the CIPP app registration already set up for the CIPP M
 |---|---|
 | `30-android-device-restrictions.json` | Blocks sideloading, developer options, USB file transfer, external media, personal Google accounts and screen capture; disables the kiosk-only network escape hatch; enables automatic app/system updates; enforces Play Protect and lockout-to-wipe |
 | `31-android-launcher-branding.json` | Makes Microsoft Launcher the managed home experience for single-user fully managed devices; applies and locks a tenant-specific wallpaper; disables the personalised feed and locks dock/search placement |
+| `32-android-edge-browser.json` | Requests Edge as the default browser; locks a focused new-tab page; removes first-run, Copilot, My Apps and personalisation prompts; enables HTTPS, SmartScreen/PUA protection and authenticated password autofill |
 
-The Android bundle consists of `30` (security and device behaviour), `31` (single-user launcher and branding), and `02` (compliance, assigned only after configuration is healthy). Keeping them separate means branding can change without reopening the security policy, while compliance remains gated behind the pilot. `31` deliberately contains no app IDs or assignments because those identifiers are tenant-specific.
+The Android bundle consists of `30` (security and device behaviour), `31` (single-user launcher and branding), `32` (managed Edge browser), and `02` (compliance, assigned only after configuration is healthy). Keeping them separate means browser and branding choices can change without reopening the security policy, while compliance remains gated behind the pilot. App installation and policy assignment remain separate actions.
 
 Before deploying `31`, add Microsoft Launcher through Managed Google Play and assign it as **Required** to the same pilot group. Create a tenant-scoped CIPP custom variable named `androidwallpaperurl` whose value is a direct, publicly reachable HTTPS image URL. CIPP replaces `%androidwallpaperurl%` at deployment, so the template remains portable and the Lloyds URL does not need to be hard-coded in GitHub. Use at least 1080×1920 for phones or 1920×1080 for landscape tablets. Shared/dedicated kiosk devices must use Managed Home Screen instead of this Launcher policy.
+
+Before deploying `32`, approve and sync Microsoft Edge from Managed Google Play and assign it as **Required** to the same pilot group. Create a tenant-scoped CIPP custom variable named `androidedgeappid` containing that tenant's Intune mobile-app object ID for Microsoft Edge. The stable package ID is included in the policy, while the variable supplies the tenant-specific association required by Graph. Android may still show a one-time browser chooser; select **Edge → Always**. The baseline deliberately keeps Edge password storage enabled because no separate managed password manager is assumed, and requires device PIN/biometric authentication before autofill.
 
 ---
 
@@ -69,13 +72,14 @@ Before deploying `31`, add Microsoft Launcher through Managed Google Play and as
 
 **Wave 1 — establish controls and telemetry.** Defender AV, Windows Firewall and **ASR in audit mode**. Start with a representative pilot, check conflicts, then expand.
 
-**Wave 2 — remediate with a pilot group first.** BitLocker, Windows Hello, OS hardening, Credential Guard, Windows LAPS, macOS FileVault/Gatekeeper, Android restrictions and Android Launcher branding. Each can visibly change behavior or depends on hardware:
+**Wave 2 — remediate with a pilot group first.** BitLocker, Windows Hello, OS hardening, Credential Guard, Windows LAPS, macOS FileVault/Gatekeeper, Android restrictions, Android Launcher branding and the Edge mobile baseline. Each can visibly change behavior or depends on hardware:
 - **BitLocker** — confirm the recovery key actually lands in Entra ID on a pilot device. A device that encrypts without a retrievable key is a support incident waiting to happen.
 - **Credential Guard / HVCI** — needs VBS-capable hardware and can break old kernel-mode drivers. The baseline uses the remotely reversible **without UEFI lock** values.
 - **Windows LAPS** — confirm a local administrator account exists, passwords escrow to Entra ID, and recovery roles are least-privileged.
 - **OS hardening** (96 settings) — explicitly test legacy NAS/scanners because the minimum SMB dialect is 3.0. It also blocks adding/removing provisioning packages after policy applies.
 - **Android restrictions** — several are user-visible; check them against how the handhelds are actually used.
 - **Android Launcher and branding** — single-user fully managed devices only. Assign Microsoft Launcher as Required and define the tenant's `androidwallpaperurl` CIPP variable before deploying the policy.
+- **Android Microsoft Edge** — approve and require Edge first, then define `androidedgeappid`. The default-browser policy registers Edge where Android permits it; some devices still require one user confirmation. Test business sites and password autofill on the pilot.
 
 **Wave 3 — compliance after remediation is healthy.** Set supported OS/build and patch floors, verify configuration success, create notification templates, and review Conditional Access. Compliance uses a seven-day migration grace. Shorten it only after the estate is stable.
 
@@ -108,7 +112,7 @@ Still intentionally **out of scope**: Windows Update rings/feature-update policy
 
 **Derived, reviewed and pinned.** The Settings Catalog policies come from [OpenIntuneBaseline](https://github.com/SkipToTheEndpoint/OpenIntuneBaseline). `build.py` pins an exact reviewed upstream commit, strips tenant state, applies the documented local safety overrides, and replaces outputs atomically only if every source builds. Updating upstream is a deliberate SHA change followed by a reviewed diff and `validate.py --refresh`.
 
-**Validation covers values, not just JSON shape.** `validate.py` refreshes cached Microsoft/CIPP data every 24 hours, checks hand-authored names and enums, validates the compliance action structure, verifies every Settings Catalog definition and selected choice against CIPP's current catalog, rejects deprecated settings and unexpected cross-policy overlap, and checks generated files for tenant scaffolding. A successful CIPP template import still only proves storage; deployment to a test tenant is the final Graph acceptance test.
+**Validation covers values, not just JSON shape.** `validate.py` refreshes cached Microsoft/CIPP data every 24 hours, checks hand-authored names and enums, validates the compliance action structure and embedded Edge managed configuration, verifies every Settings Catalog definition and selected choice against CIPP's current catalog, rejects deprecated settings and unexpected cross-policy overlap, and checks generated files for tenant scaffolding. A successful CIPP template import still only proves storage; deployment to a test tenant is the final Graph acceptance test.
 
 ---
 
@@ -142,4 +146,5 @@ Still intentionally **out of scope**: Windows Update rings/feature-update policy
 - [OpenIntuneBaseline](https://github.com/SkipToTheEndpoint/OpenIntuneBaseline) — source for the Settings Catalog policies
 - [CyberDrain CIS Templates](https://github.com/CyberDrain/CyberDrain-CIS-Templates) — CIS-aligned CIPP template pack, addable via CIPP → Endpoint Management → Templates → Community Repositories, if you want deeper CIS coverage on top of this baseline
 - [CIPP Policy Templates documentation](https://docs.cipp.app/user-documentation/endpoint/mem/list-templates)
-- Microsoft Graph beta schemas: [windows10CompliancePolicy](https://learn.microsoft.com/en-us/graph/api/resources/intune-deviceconfig-windows10compliancepolicy?view=graph-rest-beta) · [androidDeviceOwnerCompliancePolicy](https://learn.microsoft.com/en-us/graph/api/resources/intune-deviceconfig-androiddeviceownercompliancepolicy?view=graph-rest-beta) · [iosCompliancePolicy](https://learn.microsoft.com/en-us/graph/api/resources/intune-deviceconfig-ioscompliancepolicy?view=graph-rest-beta) · [macOSCompliancePolicy](https://learn.microsoft.com/en-us/graph/api/resources/intune-deviceconfig-macoscompliancepolicy?view=graph-rest-beta) · [androidDeviceOwnerGeneralDeviceConfiguration](https://learn.microsoft.com/en-us/graph/api/resources/intune-deviceconfig-androiddeviceownergeneraldeviceconfiguration?view=graph-rest-beta)
+- Microsoft Graph beta schemas: [windows10CompliancePolicy](https://learn.microsoft.com/en-us/graph/api/resources/intune-deviceconfig-windows10compliancepolicy?view=graph-rest-beta) · [androidDeviceOwnerCompliancePolicy](https://learn.microsoft.com/en-us/graph/api/resources/intune-deviceconfig-androiddeviceownercompliancepolicy?view=graph-rest-beta) · [iosCompliancePolicy](https://learn.microsoft.com/en-us/graph/api/resources/intune-deviceconfig-ioscompliancepolicy?view=graph-rest-beta) · [macOSCompliancePolicy](https://learn.microsoft.com/en-us/graph/api/resources/intune-deviceconfig-macoscompliancepolicy?view=graph-rest-beta) · [androidDeviceOwnerGeneralDeviceConfiguration](https://learn.microsoft.com/en-us/graph/api/resources/intune-deviceconfig-androiddeviceownergeneraldeviceconfiguration?view=graph-rest-beta) · [androidManagedStoreAppConfiguration](https://learn.microsoft.com/en-us/graph/api/resources/intune-apps-androidmanagedstoreappconfiguration?view=graph-rest-beta)
+- [Microsoft Edge mobile policy reference](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-mobile-policies)
