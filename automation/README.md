@@ -44,7 +44,7 @@ Policy action does not provide that lifecycle.
 
 ## Tenant bootstrap
 
-Copy `android-fully-managed.example.json` outside the public repository and fill
+Copy `android-fully-managed.example.config` outside the public repository and fill
 in the tenant names, compliance floors, FRP recovery account, Wi-Fi name and app
 matrix. Never add a Wi-Fi PSK to the JSON.
 
@@ -103,7 +103,7 @@ compliance package manually.
 
 ## Apple and tenant bootstrap
 
-Copy `ios-corporate.example.json` outside the public repository. Fill in names only;
+Copy `ios-corporate.example.config` outside the public repository. Fill in names only;
 never put APNs certificate material, ADE `.p7m` files, Apps and Books token files,
 Wi-Fi keys or enrollment payloads in JSON or Git.
 

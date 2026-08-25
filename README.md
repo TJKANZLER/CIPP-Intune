@@ -146,9 +146,9 @@ Still intentionally **out of scope**: Windows Update rings/feature-update policy
 | `Import-CippIntuneTemplates.ps1` | Bulk-import to CIPP. Dry run by default; duplicate-safe `-Execute`; `-ExistingAction Skip` resumes a partial run; `-Prefix` and `-Only` scope imports. |
 | `manifest.cipp` | Maps each file to its CIPP template type and rollout wave; excluded from CIPP's JSON policy catalog. |
 | `automation/Invoke-AndroidFullyManagedTenant.ps1` | Idempotent plan/apply bootstrap for tenant-specific Android groups, enrollment targeting, compliance floors, FRP, WPA/WPA2 Personal Wi-Fi and Managed Google Play assignments. Never stores the PSK. |
-| `automation/android-fully-managed.example.json` | Redacted tenant configuration example for the Android bootstrap. Copy it outside the public repository before customising it. |
+| `automation/android-fully-managed.example.config` | Redacted, JSON-formatted tenant configuration example for the Android bootstrap. The non-`.json` extension prevents CIPP from offering it as an Intune policy. Copy it outside the public repository before customising it. |
 | `automation/Invoke-IosCorporateTenant.ps1` | Read-only-by-default Apple prerequisite, group, ADE-profile, policy, WPA2 Personal Wi-Fi and Apps and Books assignment bootstrap. Refuses apply when APNs/ADE/Apps and Books prerequisites are absent. |
-| `automation/ios-corporate.example.json` | Redacted tenant configuration example for the iOS bootstrap. Never add Apple token files, certificate material or Wi-Fi keys. |
+| `automation/ios-corporate.example.config` | Redacted, JSON-formatted tenant configuration example for the iOS bootstrap. The non-`.json` extension prevents CIPP from offering it as an Intune policy. Never add Apple token files, certificate material or Wi-Fi keys. |
 | `automation/Test-IosCorporateTenant.ps1` | Deep read-only audit of APNs/ADE/Apps and Books dates, exact live types and settings, assignments, app identities, enrollment restrictions, Conditional Access and pilot-device health. |
 
 For repeat deployments, add the three Android configuration templates to a CIPP
