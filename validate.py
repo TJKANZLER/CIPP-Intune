@@ -102,8 +102,6 @@ EDGE_BOOLEAN_SETTINGS = {
 }
 EDGE_STRING_SETTINGS = {
     "EdgeNewTabPageLayout": {"focused"},
-    # Managed Google Play exposes this numeric-looking choice as a string value.
-    "ExperimentationAndConfigurationServiceControl": {"1"},
 }
 EDGE_CIPP_TEMPLATE_GUID = "1512f9e1-09af-5411-b1c5-febc1d8af922"
 
