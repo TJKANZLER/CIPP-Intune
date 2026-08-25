@@ -2,7 +2,7 @@
 
 Generic, security-focused Intune policy set for import into CIPP as reusable **Intune Templates**. This is the base — clone it into a client-specific version (Lloyds first) once reviewed.
 
-18 policies across Windows, Android Enterprise, iOS/iPadOS and macOS. Every policy is validated before it ships (`python3 validate.py`) and can be bulk-imported in one command.
+20 policies across Windows, Android Enterprise, iOS/iPadOS and macOS. Every policy is validated before it ships (`python3 validate.py`) and can be bulk-imported in one command.
 
 ---
 
@@ -68,6 +68,20 @@ Before deploying `32`, approve and sync Microsoft Edge from Managed Google Play 
 
 `32` is stored as a CIPP-native `IntuneTemplate` repository entity rather than a raw Graph object. This is deliberate: CIPP supports `AppConfiguration` deployment, but its generic community-repository type inference otherwise classifies an `androidManagedStoreAppConfiguration` as a classic Device policy. The native wrapper preserves the correct type during GitHub catalog import; the bulk-import script unwraps it and sends the identical Graph payload. Intune requires the Android Enterprise `payloadJson` value to contain Base64-encoded managed-configuration JSON; sending the readable JSON directly produces an unhelpful HTTP 500 from the AppLifecycle service. `validate.py` decodes and checks both layers and all embedded Edge settings.
 
+### iOS/iPadOS corporate supervised bundle — hand-authored
+
+| File | Covers |
+|---|---|
+| `33-ios-supervised-device-restrictions.json` | Microsoft Level 1/2-aligned passcode, managed-data, certificate/profile, USB Files, backup and lock-screen protections for corporate-owned supervised iPhone and iPad devices |
+| `34-ios-managed-software-updates.json` | Apple Declarative Device Management enforcement of the latest supported update after seven days, at 03:00 local device time |
+| `03-compliance-ios.json` | Six-digit passcode and jailbreak compliance plus tenant-defined minimum OS and notification template |
+
+Define `iosminimumosversion` and `ioscompliancenotificationtemplateid` as tenant-scoped CIPP variables before deploying iOS compliance. Keep `33` and `34` in an `iOS Corporate - Configuration` package and `03` alone in `iOS Corporate - Compliance`. Assign the configuration package to a static pilot first; assign compliance only after the pilot device reports configuration success and has updated.
+
+The core deliberately does not block screenshots or AirDrop, ban personal Apple Accounts, enable Activation Lock, block all host pairing, or block all iCloud backup. AirDrop is treated as an unmanaged destination and managed documents cannot open in unmanaged apps. These omitted controls have material usability, recovery, contact-sync or technician-support consequences and must be decided with the customer after a real pilot. The profile also explicitly leaves joining non-managed Wi-Fi networks available.
+
+Company Portal and all other iOS apps must come from Apple Business Manager Apps and Books with device licensing. For ADE with Setup Assistant modern authentication, select **Install Company Portal with VPP** in the enrollment profile; do not ask users to install Company Portal manually from the public App Store. Apple tokens, app licences, ADE profiles, Wi-Fi secrets and wallpaper image payloads are tenant-specific and are not stored in this repository.
+
 ---
 
 ## Rollout order
@@ -76,7 +90,7 @@ Before deploying `32`, approve and sync Microsoft Edge from Managed Google Play 
 
 **Wave 1 — establish controls and telemetry.** Defender AV, Windows Firewall and **ASR in audit mode**. Start with a representative pilot, check conflicts, then expand.
 
-**Wave 2 — remediate with a pilot group first.** BitLocker, Windows Hello, OS hardening, Credential Guard, Windows LAPS, macOS FileVault/Gatekeeper, Android restrictions, Android Launcher branding and the Edge mobile baseline. Each can visibly change behavior or depends on hardware:
+**Wave 2 — remediate with a pilot group first.** BitLocker, Windows Hello, OS hardening, Credential Guard, Windows LAPS, macOS FileVault/Gatekeeper, Android restrictions, Android Launcher branding, the Edge mobile baseline, supervised iOS restrictions and Apple DDM updates. Each can visibly change behavior or depends on hardware:
 - **BitLocker** — confirm the recovery key actually lands in Entra ID on a pilot device. A device that encrypts without a retrievable key is a support incident waiting to happen.
 - **Credential Guard / HVCI** — needs VBS-capable hardware and can break old kernel-mode drivers. The baseline uses the remotely reversible **without UEFI lock** values.
 - **Windows LAPS** — confirm a local administrator account exists, passwords escrow to Entra ID, and recovery roles are least-privileged.
@@ -84,6 +98,8 @@ Before deploying `32`, approve and sync Microsoft Edge from Managed Google Play 
 - **Android restrictions** — several are user-visible; check them against how the handhelds are actually used.
 - **Android Launcher and branding** — single-user fully managed devices only. Assign Microsoft Launcher as Required and define the tenant's `androidwallpaperurl` CIPP variable before deploying the policy.
 - **Android Microsoft Edge** — approve and require Edge first, then define `androidedgeappid`. The default-browser policy registers Edge where Android permits it; some devices still require one user confirmation. Test business sites and password autofill on the pilot.
+- **iOS/iPadOS supervised restrictions** — use ADE and supervision. Test Outlook contact export, managed/unmanaged data flow, USB Files access, AirDrop, screenshots, personal Apple Account and recovery workflows before changing the documented core decisions.
+- **Apple managed updates** — the DDM policy requires iOS/iPadOS 17 or later and enforces the latest device-supported version after seven days. Verify the actual OS version and update reporting on each supported model.
 
 **Wave 3 — compliance after remediation is healthy.** Set supported OS/build and patch floors, verify configuration success, create notification templates, and review Conditional Access. Compliance uses a seven-day migration grace. Shorten it only after the estate is stable.
 
@@ -103,8 +119,9 @@ These controls need tenant and fleet data before wave 3:
 - **Android password posture** — a six-digit `numericComplex` PIN is required in both the restrictions and compliance policies. Move to `alphanumeric` only if Lloyds explicitly accepts the usability and support cost.
 - **Android recovery/data posture** — the kiosk-only network escape hatch is disabled for this single-user fully managed scope. App updates use any network and may consume cellular data; use `wiFiOnly` if cellular cost outweighs delayed app patching.
 - **Android compliance notification template** — create the tenant's message template first and put its GUID in `androidcompliancenotificationtemplateid`. Referencing a GUID that does not exist in that tenant will fail deployment. The other platform policies still ship with block-only actions and can receive tenant-specific notification actions later.
+- **iOS/iPadOS OS floor and notification** — define `iosminimumosversion` from the supported Apple model inventory and `ioscompliancenotificationtemplateid` from an existing Intune notification template. Never guess a floor before the supported hardware and current OS versions are known.
 
-Still intentionally **out of scope**: Windows Update rings/feature-update policy, Defender for Endpoint onboarding and tamper protection, macOS update/Defender PPPC prerequisites, iOS restrictions, enrollment restrictions, Managed Google Play app creation/assignment, tenant-specific kiosk app allowlists, and App Protection/MAM for BYOD. Treat these as the next layer rather than assuming this set is a complete Intune architecture.
+Still intentionally **out of scope**: Windows Update rings/feature-update policy, Defender for Endpoint onboarding and tamper protection, macOS update/Defender PPPC prerequisites, Apple enrollment restrictions and token creation, Apps and Books acquisition/assignment, Managed Google Play app creation/assignment, tenant-specific kiosk app allowlists, and App Protection/MAM for BYOD. Treat these as tenant bootstrap responsibilities rather than assuming this set is a complete Intune architecture.
 
 ---
 
@@ -130,6 +147,9 @@ Still intentionally **out of scope**: Windows Update rings/feature-update policy
 | `manifest.cipp` | Maps each file to its CIPP template type and rollout wave; excluded from CIPP's JSON policy catalog. |
 | `automation/Invoke-AndroidFullyManagedTenant.ps1` | Idempotent plan/apply bootstrap for tenant-specific Android groups, enrollment targeting, compliance floors, FRP, WPA/WPA2 Personal Wi-Fi and Managed Google Play assignments. Never stores the PSK. |
 | `automation/android-fully-managed.example.json` | Redacted tenant configuration example for the Android bootstrap. Copy it outside the public repository before customising it. |
+| `automation/Invoke-IosCorporateTenant.ps1` | Read-only-by-default Apple prerequisite, group, ADE-profile, policy, WPA2 Personal Wi-Fi and Apps and Books assignment bootstrap. Refuses apply when APNs/ADE/Apps and Books prerequisites are absent. |
+| `automation/ios-corporate.example.json` | Redacted tenant configuration example for the iOS bootstrap. Never add Apple token files, certificate material or Wi-Fi keys. |
+| `automation/Test-IosCorporateTenant.ps1` | Deep read-only audit of APNs/ADE/Apps and Books dates, exact live types and settings, assignments, app identities, enrollment restrictions, Conditional Access and pilot-device health. |
 
 For repeat deployments, add the three Android configuration templates to a CIPP
 package and deploy that package from a **CIPP Standards template** with assignment

@@ -1,0 +1,31 @@
+{
+  "TenantId": "contoso.onmicrosoft.com",
+  "PilotGroupName": "Contoso iOS Pilot",
+  "DriversGroupName": "SG - iOS | Drivers",
+  "OfficeGroupName": "SG - iOS | Office Staff",
+  "AdeTokenName": "Contoso Apple Business Manager",
+  "AppsAndBooksTokenName": "Contoso Apps and Books",
+  "EnrollmentProfileName": "Contoso iOS - Corporate User Affinity",
+  "DeviceNameTemplate": "IOS-{{SERIAL}}",
+  "Policies": {
+    "Restrictions": "Baseline - iOS/iPadOS (Supervised) - Device Restrictions",
+    "Updates": "Baseline - iOS/iPadOS (Supervised) - Managed Software Updates",
+    "Compliance": "Baseline - iOS/iPadOS - Compliance"
+  },
+  "Compliance": {
+    "MinimumOsVersion": "18.0",
+    "NotificationTemplateId": "00000000-0000-0000-0000-000000000000"
+  },
+  "Wifi": {
+    "DisplayName": "Contoso - iOS | Wi-Fi - Corporate",
+    "NetworkName": "Corporate Wi-Fi",
+    "Ssid": "CORPORATE",
+    "Hidden": false
+  },
+  "Apps": [
+    { "DisplayName": "Intune Company Portal", "Group": "Pilot", "Intent": "required" },
+    { "DisplayName": "Microsoft Authenticator", "Group": "Pilot", "Intent": "required" },
+    { "DisplayName": "Microsoft Edge", "Group": "Drivers", "Intent": "required" },
+    { "DisplayName": "Microsoft Edge", "Group": "Office", "Intent": "required" }
+  ]
+}

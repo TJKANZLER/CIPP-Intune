@@ -21,6 +21,7 @@ Checks performed:
   9. CIPP replacement tokens are explicitly allowlisted
  10. separate hand-authored policies for the same Graph resource do not configure the same setting
  11. the embedded Microsoft Edge managed-app payload has the expected package, keys and value types
+ 12. the supervised iOS restrictions and declarative update policy preserve their safety-critical posture
 
 Run:  python3 validate.py
       python3 validate.py --refresh   # force fresh Microsoft/CIPP schema data
@@ -58,6 +59,7 @@ HAND_AUTHORED = {
     "30-android-device-restrictions.json": "intune-deviceconfig-androiddeviceownergeneraldeviceconfiguration",
     "31-android-launcher-branding.json": "intune-deviceconfig-androiddeviceownergeneraldeviceconfiguration",
     "IntuneTemplate/32-android-edge-browser.json": "intune-apps-androidmanagedstoreappconfiguration",
+    "33-ios-supervised-device-restrictions.json": "intune-deviceconfig-iosgeneraldeviceconfiguration",
 }
 
 ALLOWED_CIPP_TOKENS = {
@@ -67,6 +69,8 @@ ALLOWED_CIPP_TOKENS = {
     "androidminimumosversion",
     "androidminimumsecuritypatchlevel",
     "androidwallpaperurl",
+    "ioscompliancenotificationtemplateid",
+    "iosminimumosversion",
 }
 PASSTHROUGH_PERCENT_VARS = {"systemroot"}
 POLICY_IDENTITY_FIELDS = {"@odata.type", "displayName", "description", "roleScopeTagIds"}
@@ -276,6 +280,57 @@ def check_android_tenant_tokens(filename, data):
     return problems
 
 
+def check_ios_policy_safety(filename, data):
+    """Validate tenant tokens and support-sensitive Apple defaults."""
+    problems = []
+    if filename == "03-compliance-ios.json":
+        if data.get("osMinimumVersion") != "%iosminimumosversion%":
+            problems.append(
+                f"{filename}: osMinimumVersion must be %iosminimumosversion%"
+            )
+        actions = data.get("scheduledActionsForRule", [{}])[0].get(
+            "scheduledActionConfigurations", []
+        )
+        notifications = [a for a in actions if a.get("actionType") == "notification"]
+        if len(notifications) != 1:
+            problems.append(f"{filename}: must contain exactly one notification action")
+        elif (
+            notifications[0].get("gracePeriodHours") != 24
+            or notifications[0].get("notificationTemplateId")
+            != "%ioscompliancenotificationtemplateid%"
+        ):
+            problems.append(
+                f"{filename}: notification must run at 24 hours and use "
+                "%ioscompliancenotificationtemplateid%"
+            )
+    elif filename == "33-ios-supervised-device-restrictions.json":
+        expected = {
+            "airDropBlocked": False,
+            "airDropForceUnmanagedDropTarget": True,
+            "screenCaptureBlocked": False,
+            "documentsBlockManagedDocumentsInUnmanagedApps": True,
+            "documentsBlockUnmanagedDocumentsInManagedApps": False,
+            "filesUsbDriveAccessBlocked": True,
+            "wiFiConnectOnlyToConfiguredNetworks": False,
+            "wiFiConnectToAllowedNetworksOnlyForced": False,
+        }
+        for key, value in expected.items():
+            if data.get(key) is not value:
+                problems.append(f"{filename}: {key} must be {value}")
+        disruptive = {
+            "accountBlockModification",
+            "activationLockAllowWhenSupervised",
+            "hostPairingBlocked",
+            "iCloudBlockBackup",
+        }
+        configured = sorted(disruptive & set(data))
+        if configured:
+            problems.append(
+                f"{filename}: support-sensitive decisions must remain unconfigured: {configured}"
+            )
+    return problems
+
+
 def unwrap_cipp_native_template(filename, stored):
     """Return (Graph policy, problems) from a CIPP-native IntuneTemplate repo entity."""
     if not isinstance(stored, dict) or stored.get("PartitionKey") != "IntuneTemplate":
@@ -343,6 +398,7 @@ def check_hand_authored(refresh=False, max_age_hours=24):
         problems += check_compliance_actions(filename, data)
         problems += check_edge_managed_configuration(filename, data)
         problems += check_android_tenant_tokens(filename, data)
+        problems += check_ios_policy_safety(filename, data)
 
         for prop in set(data) - POLICY_IDENTITY_FIELDS:
             property_owners.setdefault((resource, prop), set()).add(filename)
@@ -371,9 +427,11 @@ def check_generated(catalog):
     problems = []
     definitions = {item.get("id"): item for item in catalog}
     used_by = {}
-    generated = sorted(
+    generated = set(
         p for p in HERE.glob("[12]*.json") if p.name not in HAND_AUTHORED
     )
+    generated.add(HERE / "34-ios-managed-software-updates.json")
+    generated = sorted(generated)
     for path in generated:
         raw = path.read_text(encoding="utf-8")
         try:
@@ -410,7 +468,12 @@ def check_generated(catalog):
 
                 choice = instance.get("choiceSettingValue")
                 if isinstance(choice, dict) and isinstance(choice.get("value"), str):
-                    allowed = {option.get("id") for option in definition.get("options") or []}
+                    options = definition.get("options") or []
+                    if isinstance(options, dict):
+                        options = [options]
+                    allowed = {
+                        option.get("id") for option in options if isinstance(option, dict)
+                    }
                     if choice["value"] not in allowed:
                         problems.append(
                             f"{path.name}: invalid choice {choice['value']!r} for {setting_id}"
@@ -439,6 +502,38 @@ def check_generated(catalog):
                     )
 
             print(f"  ok  {path.name}  ({len(instances)} settings, {data['platforms']})")
+
+            if path.name == "34-ios-managed-software-updates.json":
+                if data.get("technologies") != "mdm,appleRemoteManagement":
+                    problems.append(
+                        f"{path.name}: technologies must be mdm,appleRemoteManagement"
+                    )
+                by_id = {item["settingDefinitionId"]: item for item in instances}
+                required = {
+                    "ddm-latestsoftwareupdate_ddm-latestsoftwareupdate",
+                    "ddm-latestsoftwareupdate_enforcelatestsoftwareupdateversion",
+                    "ddm-latestsoftwareupdate_delayindays",
+                    "ddm-latestsoftwareupdate_installtime",
+                }
+                missing = sorted(required - set(by_id))
+                if missing:
+                    problems.append(f"{path.name}: missing DDM update settings: {missing}")
+                else:
+                    enforce = by_id[
+                        "ddm-latestsoftwareupdate_enforcelatestsoftwareupdateversion"
+                    ].get("choiceSettingValue", {}).get("value")
+                    delay = by_id["ddm-latestsoftwareupdate_delayindays"].get(
+                        "simpleSettingValue", {}
+                    ).get("value")
+                    install_time = by_id["ddm-latestsoftwareupdate_installtime"].get(
+                        "simpleSettingValue", {}
+                    ).get("value")
+                    if enforce != "ddm-latestsoftwareupdate_enforcelatestsoftwareupdateversion_0":
+                        problems.append(f"{path.name}: latest-version enforcement is not enabled")
+                    if delay != 7:
+                        problems.append(f"{path.name}: enforcement delay must be seven days")
+                    if install_time != "03:00":
+                        problems.append(f"{path.name}: install time must be 03:00")
 
     allowed_overlap = {
         "11-win-sc-asr-rules-audit.json",

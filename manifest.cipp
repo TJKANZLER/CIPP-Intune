@@ -31,7 +31,7 @@
       "templateType": "deviceCompliancePolicies",
       "platform": "iOS/iPadOS",
       "assignOrder": 3,
-      "prerequisite": "Set the supported iOS/iPadOS minimum version, create user notifications, and review Conditional Access before assigning compliance."
+      "prerequisite": "Define iosminimumosversion and ioscompliancenotificationtemplateid as tenant CIPP variables. Deploy and verify the supervised restrictions and managed-update policies first, then review Conditional Access before assigning compliance."
     },
     {
       "file": "04-compliance-macos.json",
@@ -128,6 +128,22 @@
       "assignOrder": 2,
       "prerequisite": "Approve and sync Microsoft Edge from Managed Google Play, assign it as Required to the same pilot group, and define the tenant CIPP custom variable androidedgeappid as that tenant's Microsoft Edge mobile-app object ID before deployment.",
       "note": "Portable Edge managed-app baseline. Android may still require a one-time user confirmation before Edge becomes the system default browser. Pilot the focused new-tab and password-manager behavior before broad assignment."
+    },
+    {
+      "file": "33-ios-supervised-device-restrictions.json",
+      "templateType": "Device",
+      "platform": "iOS/iPadOS (corporate-owned, supervised)",
+      "assignOrder": 2,
+      "prerequisite": "Use Apple Business Manager Automated Device Enrollment with supervision and Setup Assistant with modern authentication. Assign only to a static pilot group after APNs, ADE and Apps and Books tokens are healthy.",
+      "note": "Level 1/2 core. AirDrop remains available but is treated as unmanaged; screenshots, other Wi-Fi networks, personal Apple Accounts, Find My, Activation Lock and host pairing are not blocked by this profile. Decide those support-sensitive controls after the pilot."
+    },
+    {
+      "file": "34-ios-managed-software-updates.json",
+      "templateType": "Catalog",
+      "platform": "iOS/iPadOS (supervised, iOS/iPadOS 17+)",
+      "assignOrder": 2,
+      "prerequisite": "Pilot the seven-day Apple Declarative Device Management deadline and 03:00 local install time on every supported model. Confirm the OS version actually changes; policy success alone is insufficient.",
+      "note": "Uses Apple's DDM latest-software-update enforcement rather than the deprecated legacy MDM update workload."
     },
     {
       "file": "12-win-sc-asr-rules-enforced.json",

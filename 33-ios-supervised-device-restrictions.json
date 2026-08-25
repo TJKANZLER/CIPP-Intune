@@ -1,0 +1,50 @@
+{
+  "@odata.type": "#microsoft.graph.iosGeneralDeviceConfiguration",
+  "displayName": "Baseline - iOS/iPadOS (Supervised) - Device Restrictions",
+  "description": "Level 1/2 baseline for corporate-owned supervised iPhone and iPad devices. Requires a six-digit passcode, protects managed data, blocks untrusted profiles and certificates, restricts USB Files access, and preserves support-sensitive features such as screenshots, AirDrop, other Wi-Fi networks, personal Apple Accounts, Find My and host pairing until the customer explicitly decides otherwise.",
+  "roleScopeTagIds": ["0"],
+
+  "passcodeRequired": true,
+  "passcodeBlockSimple": true,
+  "passcodeMinimumLength": 6,
+  "passcodeRequiredType": "numeric",
+  "passcodeMinutesOfInactivityBeforeLock": 5,
+  "passcodeMinutesOfInactivityBeforeScreenTimeout": 5,
+  "passcodePreviousPasscodeBlockCount": 5,
+  "passcodeSignInFailureCountBeforeWipe": 10,
+
+  "airDropBlocked": false,
+  "airDropForceUnmanagedDropTarget": true,
+  "screenCaptureBlocked": false,
+  "siriBlockedWhenLocked": true,
+  "safariRequireFraudWarning": true,
+  "autoFillForceAuthentication": true,
+
+  "documentsBlockManagedDocumentsInUnmanagedApps": true,
+  "documentsBlockUnmanagedDocumentsInManagedApps": false,
+  "contactsAllowManagedToUnmanagedWrite": true,
+  "contactsAllowUnmanagedToManagedRead": false,
+  "managedPasteboardRequired": true,
+
+  "iCloudRequireEncryptedBackup": true,
+  "iCloudBlockManagedAppsSync": true,
+  "iCloudBlockDocumentSync": true,
+  "keychainBlockCloudSync": true,
+  "enterpriseBookBlockBackup": true,
+  "enterpriseBookBlockMetadataSync": true,
+
+  "appleWatchForceWristDetection": true,
+  "airPrintBlockCredentialsStorage": true,
+  "airPrintForceTrustedTLS": true,
+  "airPrintBlockiBeaconDiscovery": true,
+  "proximityBlockSetupToNewDevice": true,
+  "filesUsbDriveAccessBlocked": true,
+
+  "certificatesBlockUntrustedTlsCertificates": true,
+  "enterpriseAppBlockTrust": true,
+  "configurationProfileBlockChanges": true,
+  "diagnosticDataBlockSubmission": true,
+
+  "wiFiConnectOnlyToConfiguredNetworks": false,
+  "wiFiConnectToAllowedNetworksOnlyForced": false
+}
