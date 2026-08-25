@@ -100,8 +100,11 @@ EDGE_BOOLEAN_SETTINGS = {
     "PasswordManagerEnabled",
     "BiometricAuthenticationBeforeFilling",
 }
-EDGE_STRING_SETTINGS = {"EdgeNewTabPageLayout": {"focused"}}
-EDGE_INTEGER_SETTINGS = {"ExperimentationAndConfigurationServiceControl": {1}}
+EDGE_STRING_SETTINGS = {
+    "EdgeNewTabPageLayout": {"focused"},
+    # Managed Google Play exposes this numeric-looking choice as a string value.
+    "ExperimentationAndConfigurationServiceControl": {"1"},
+}
 EDGE_CIPP_TEMPLATE_GUID = "1512f9e1-09af-5411-b1c5-febc1d8af922"
 
 
@@ -204,7 +207,7 @@ def check_edge_managed_configuration(filename, data):
     if duplicates:
         problems.append(f"{filename}: duplicate Edge managed configuration keys: {duplicates}")
 
-    expected = EDGE_BOOLEAN_SETTINGS | set(EDGE_STRING_SETTINGS) | set(EDGE_INTEGER_SETTINGS)
+    expected = EDGE_BOOLEAN_SETTINGS | set(EDGE_STRING_SETTINGS)
     missing = sorted(expected - set(keys))
     unknown = sorted(set(keys) - expected)
     if missing:
@@ -224,11 +227,6 @@ def check_edge_managed_configuration(filename, data):
         elif key in EDGE_STRING_SETTINGS:
             if value_fields != {"valueString"} or item.get("valueString") not in EDGE_STRING_SETTINGS[key]:
                 problems.append(f"{filename}: {key} has an invalid valueString")
-        elif key in EDGE_INTEGER_SETTINGS:
-            value = item.get("valueInteger")
-            if value_fields != {"valueInteger"} or type(value) is not int or value not in EDGE_INTEGER_SETTINGS[key]:
-                problems.append(f"{filename}: {key} has an invalid valueInteger")
-
     if not problems:
         print(f"  ok  {filename} embedded Edge payload  ({len(settings)} managed settings)")
     return problems
