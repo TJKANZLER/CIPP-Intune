@@ -56,13 +56,15 @@ The import script reuses the CIPP app registration already set up for the CIPP M
 |---|---|
 | `30-android-device-restrictions.json` | Blocks sideloading, developer options, USB file transfer, external media, personal Google accounts and screen capture; disables the kiosk-only network escape hatch; enables automatic app/system updates; enforces Play Protect and lockout-to-wipe |
 | `31-android-launcher-branding.json` | Makes Microsoft Launcher the managed home experience for single-user fully managed devices; applies and locks a tenant-specific wallpaper; disables the personalised feed and locks dock/search placement |
-| `32-android-edge-browser.json` | Requests Edge as the default browser; locks a focused new-tab page; removes first-run, Copilot, My Apps and personalisation prompts; enables HTTPS, SmartScreen/PUA protection and authenticated password autofill |
+| `IntuneTemplate/32-android-edge-browser.json` | Requests Edge as the default browser; locks a focused new-tab page; removes first-run, Copilot, My Apps and personalisation prompts; enables HTTPS, SmartScreen/PUA protection and authenticated password autofill |
 
 The Android bundle consists of `30` (security and device behaviour), `31` (single-user launcher and branding), `32` (managed Edge browser), and `02` (compliance, assigned only after configuration is healthy). Keeping them separate means browser and branding choices can change without reopening the security policy, while compliance remains gated behind the pilot. App installation and policy assignment remain separate actions.
 
 Before deploying `31`, add Microsoft Launcher through Managed Google Play and assign it as **Required** to the same pilot group. Create a tenant-scoped CIPP custom variable named `androidwallpaperurl` whose value is a direct, publicly reachable HTTPS image URL. CIPP replaces `%androidwallpaperurl%` at deployment, so the template remains portable and the Lloyds URL does not need to be hard-coded in GitHub. Use at least 1080×1920 for phones or 1920×1080 for landscape tablets. Shared/dedicated kiosk devices must use Managed Home Screen instead of this Launcher policy.
 
 Before deploying `32`, approve and sync Microsoft Edge from Managed Google Play and assign it as **Required** to the same pilot group. Create a tenant-scoped CIPP custom variable named `androidedgeappid` containing that tenant's Intune mobile-app object ID for Microsoft Edge. The stable package ID is included in the policy, while the variable supplies the tenant-specific association required by Graph. Android may still show a one-time browser chooser; select **Edge → Always**. The baseline deliberately keeps Edge password storage enabled because no separate managed password manager is assumed, and requires device PIN/biometric authentication before autofill.
+
+`32` is stored as a CIPP-native `IntuneTemplate` repository entity rather than a raw Graph object. This is deliberate: CIPP supports `AppConfiguration` deployment, but its generic community-repository type inference otherwise classifies an `androidManagedStoreAppConfiguration` as a classic Device policy. The native wrapper preserves the correct type during GitHub catalog import; the bulk-import script unwraps it and sends the identical Graph payload. `validate.py` checks both layers and the embedded Edge managed-configuration JSON.
 
 ---
 

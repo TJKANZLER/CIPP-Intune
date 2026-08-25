@@ -139,6 +139,18 @@ $work = foreach ($policy in $policies) {
     $raw = Get-Content -Raw -LiteralPath $path
     try { $parsed = $raw | ConvertFrom-Json } catch { throw "$($policy.file): invalid JSON - $($_.Exception.Message)" }
 
+    # CIPP's community-repository importer only preserves AppConfiguration when the file is
+    # a native IntuneTemplate table entity. Unwrap that repository-safe representation when
+    # importing through this script so both paths send the same Graph policy payload.
+    if ($parsed.PartitionKey -eq 'IntuneTemplate') {
+        $storedTemplate = if ($parsed.JSON -is [string]) { $parsed.JSON | ConvertFrom-Json } else { $parsed.JSON }
+        if ($storedTemplate.Type -ne 'AppConfiguration' -or [string]::IsNullOrWhiteSpace([string]$storedTemplate.RAWJson)) {
+            throw "$($policy.file): invalid native CIPP AppConfiguration wrapper."
+        }
+        $raw = [string]$storedTemplate.RAWJson
+        try { $parsed = $raw | ConvertFrom-Json } catch { throw "$($policy.file): invalid wrapped RAWJson - $($_.Exception.Message)" }
+    }
+
     # Settings Catalog policies name themselves with 'name'; the rest use 'displayName'.
     $name = if ($parsed.PSObject.Properties.Name -contains 'displayName') { $parsed.displayName } else { $parsed.name }
     if ([string]::IsNullOrWhiteSpace($name)) { throw "$($policy.file): no displayName or name field." }

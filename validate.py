@@ -56,7 +56,7 @@ HAND_AUTHORED = {
     "04-compliance-macos.json": "intune-deviceconfig-macoscompliancepolicy",
     "30-android-device-restrictions.json": "intune-deviceconfig-androiddeviceownergeneraldeviceconfiguration",
     "31-android-launcher-branding.json": "intune-deviceconfig-androiddeviceownergeneraldeviceconfiguration",
-    "32-android-edge-browser.json": "intune-apps-androidmanagedstoreappconfiguration",
+    "IntuneTemplate/32-android-edge-browser.json": "intune-apps-androidmanagedstoreappconfiguration",
 }
 
 ALLOWED_CIPP_TOKENS = {"androidedgeappid", "androidwallpaperurl"}
@@ -102,6 +102,7 @@ EDGE_BOOLEAN_SETTINGS = {
 }
 EDGE_STRING_SETTINGS = {"EdgeNewTabPageLayout": {"focused"}}
 EDGE_INTEGER_SETTINGS = {"ExperimentationAndConfigurationServiceControl": {1}}
+EDGE_CIPP_TEMPLATE_GUID = "1512f9e1-09af-5411-b1c5-febc1d8af922"
 
 
 def cached_download(url, cached, refresh=False, max_age_hours=24):
@@ -174,7 +175,7 @@ def check_compliance_actions(filename, data):
 
 def check_edge_managed_configuration(filename, data):
     """Validate the JSON-inside-JSON payload used by Android managed app configuration."""
-    if filename != "32-android-edge-browser.json":
+    if filename != "IntuneTemplate/32-android-edge-browser.json":
         return []
 
     problems = []
@@ -233,6 +234,42 @@ def check_edge_managed_configuration(filename, data):
     return problems
 
 
+def unwrap_cipp_native_template(filename, stored):
+    """Return (Graph policy, problems) from a CIPP-native IntuneTemplate repo entity."""
+    if not isinstance(stored, dict) or stored.get("PartitionKey") != "IntuneTemplate":
+        return stored, []
+
+    problems = []
+    row_key = stored.get("RowKey")
+    if row_key != EDGE_CIPP_TEMPLATE_GUID:
+        problems.append(f"{filename}: native wrapper has an unexpected or missing RowKey")
+    if stored.get("GUID") != row_key:
+        problems.append(f"{filename}: native wrapper GUID and RowKey must match")
+    try:
+        record = stored.get("JSON")
+        if isinstance(record, str):
+            record = json.loads(record)
+        if not isinstance(record, dict):
+            raise TypeError("JSON must contain an object or encoded object")
+        policy = record.get("RAWJson")
+        if isinstance(policy, str):
+            policy = json.loads(policy)
+        if not isinstance(policy, dict):
+            raise TypeError("RAWJson must contain an object or encoded object")
+    except (TypeError, json.JSONDecodeError) as exc:
+        return {}, problems + [f"{filename}: invalid native CIPP wrapper - {exc}"]
+
+    if record.get("Type") != "AppConfiguration":
+        problems.append(f"{filename}: native wrapper Type must be AppConfiguration")
+    if record.get("GUID") != row_key:
+        problems.append(f"{filename}: embedded template GUID must match RowKey")
+    if record.get("Displayname") != policy.get("displayName"):
+        problems.append(f"{filename}: wrapper and policy display names differ")
+    if record.get("Description") != policy.get("description"):
+        problems.append(f"{filename}: wrapper and policy descriptions differ")
+    return policy, problems
+
+
 def check_hand_authored(refresh=False, max_age_hours=24):
     problems = []
     property_owners = {}
@@ -241,7 +278,9 @@ def check_hand_authored(refresh=False, max_age_hours=24):
         if not path.exists():
             problems.append(f"{filename}: missing")
             continue
-        data = json.loads(path.read_text(encoding="utf-8"))
+        stored = json.loads(path.read_text(encoding="utf-8"))
+        data, wrapper_problems = unwrap_cipp_native_template(filename, stored)
+        problems += wrapper_problems
         names, enums = parse_schema(schema(resource, refresh, max_age_hours))
 
         bad_names = [k for k in data if k not in names and k not in NOT_IN_PROPERTY_TABLE]
@@ -387,7 +426,11 @@ def check_manifest_and_tokens():
     if duplicates:
         problems.append(f"manifest.cipp: duplicate policy entries: {duplicates}")
 
-    actual = {path.name for path in HERE.glob("[0-9][0-9]-*.json")}
+    actual = {
+        path.relative_to(HERE).as_posix()
+        for path in HERE.rglob("[0-9][0-9]-*.json")
+        if not any(part.startswith(".") for part in path.relative_to(HERE).parts)
+    }
     listed_set = {name for name in listed if isinstance(name, str)}
     missing = sorted(actual - listed_set)
     orphaned = sorted(listed_set - actual)
@@ -411,11 +454,16 @@ def check_manifest_and_tokens():
             )
 
     token_pattern = re.compile(r"%([a-zA-Z][a-zA-Z0-9_-]*)%")
-    for path in sorted(HERE.glob("[0-9][0-9]-*.json")):
+    for path in sorted(
+        path for path in HERE.rglob("[0-9][0-9]-*.json")
+        if not any(part.startswith(".") for part in path.relative_to(HERE).parts)
+    ):
         tokens = {match.lower() for match in token_pattern.findall(path.read_text(encoding="utf-8"))}
         unknown = sorted(tokens - ALLOWED_CIPP_TOKENS - PASSTHROUGH_PERCENT_VARS)
         if unknown:
-            problems.append(f"{path.name}: unapproved CIPP replacement token(s): {unknown}")
+            problems.append(
+                f"{path.relative_to(HERE).as_posix()}: unapproved CIPP replacement token(s): {unknown}"
+            )
 
     if not problems:
         print(f"  ok  manifest.cipp  ({len(actual)} policies, no orphans or duplicate entries)")

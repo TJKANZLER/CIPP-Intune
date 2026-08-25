@@ -121,7 +121,7 @@
       "note": "Portable branding policy. The wallpaper URL is resolved per tenant by CIPP from %androidwallpaperurl%. Do not assign this policy to dedicated/shared kiosk devices; use Managed Home Screen for those devices."
     },
     {
-      "file": "32-android-edge-browser.json",
+      "file": "IntuneTemplate/32-android-edge-browser.json",
       "templateType": "AppConfiguration",
       "platform": "Android Enterprise (COBO - single-user fully managed)",
       "assignOrder": 2,
