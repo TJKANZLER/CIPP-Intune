@@ -154,7 +154,7 @@ function Ensure-Assignment {
 
 if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { throw "Configuration not found: $ConfigPath" }
 $config = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
-foreach ($required in @('TenantId','PilotGroupName','DriversGroupName','OfficeGroupName','AdeTokenName','AppsAndBooksTokenName','EnrollmentProfileName','DeviceNameTemplate')) {
+foreach ($required in @('TenantId','PilotGroupName','AdeTokenName','AppsAndBooksTokenName','EnrollmentProfileName','DeviceNameTemplate')) {
     if ([string]::IsNullOrWhiteSpace([string]$config.$required)) { throw "Configuration is missing '$required'." }
 }
 foreach ($requiredPolicy in @('Restrictions','Updates','Compliance')) {
@@ -246,8 +246,8 @@ if ($Apply -and $hardBlockers.Count) {
 }
 
 $pilot = Get-OrCreateSecurityGroup $config.PilotGroupName
-$drivers = Get-OrCreateSecurityGroup $config.DriversGroupName
-$office = Get-OrCreateSecurityGroup $config.OfficeGroupName
+$drivers = if ($config.DriversGroupName) { Get-OrCreateSecurityGroup $config.DriversGroupName } else { $null }
+$office = if ($config.OfficeGroupName) { Get-OrCreateSecurityGroup $config.OfficeGroupName } else { $null }
 $groupsByKey = @{ Pilot = $pilot; Drivers = $drivers; Office = $office }
 
 # CIPP owns these definitions and assignments. This script audits rather than duplicates that lifecycle.
@@ -335,6 +335,9 @@ if ($wifi -and $pilot -and -not $ComplianceWave) {
 $apps = @(Get-GraphCollection "$graphRoot/deviceAppManagement/mobileApps")
 foreach ($wanted in @($config.Apps)) {
     if ($wanted.Group -notin @('Pilot','Drivers','Office')) { throw "App '$($wanted.DisplayName)' has invalid Group '$($wanted.Group)'." }
+    if (-not $groupsByKey.ContainsKey([string]$wanted.Group) -or -not $config."$($wanted.Group)GroupName") {
+        throw "App '$($wanted.DisplayName)' targets '$($wanted.Group)', but that optional role group is not configured."
+    }
     if ($wanted.Intent -notin @('required','available')) { throw "App '$($wanted.DisplayName)' has invalid Intent '$($wanted.Intent)'." }
     $app = Get-OneIosVppAppByDisplayName $apps $wanted.DisplayName
     if (-not $app) { Add-Outcome 'Apps' $wanted.DisplayName 'Manual prerequisite' 'Acquire in Apple Business Manager Apps and Books and sync Intune'; continue }

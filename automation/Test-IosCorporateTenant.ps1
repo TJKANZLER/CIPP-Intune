@@ -176,7 +176,7 @@ foreach ($device in $abmDevices) {
 # Groups
 $allGroups=@(Get-GraphCollection "$graphRoot/groups?`$select=id,displayName,securityEnabled,mailEnabled,groupTypes")
 $groups=@{}
-foreach($pair in @(@('Pilot',$config.PilotGroupName),@('Drivers',$config.DriversGroupName),@('Office',$config.OfficeGroupName))){
+foreach($pair in @(@('Pilot',$config.PilotGroupName),@('Drivers',$config.DriversGroupName),@('Office',$config.OfficeGroupName)) | Where-Object { $_[1] }){
     $group=Get-OneByName $allGroups $pair[1] 'Security group'; $groups[$pair[0]]=$group
     if(-not $group){Add-Result 'Groups' $pair[1] 'Static security group' 'Missing' 'FAIL'}
     else {Add-Result 'Groups' $pair[1] 'Static security group' $group.id $(if($group.securityEnabled -and -not $group.mailEnabled -and $group.groupTypes -notcontains 'DynamicMembership'){'PASS'}else{'FAIL'})}
