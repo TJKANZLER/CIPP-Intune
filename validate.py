@@ -30,6 +30,7 @@ Schemas are fetched from the public microsoft-graph-docs-contrib repo and cached
 """
 
 import argparse
+import base64
 import json
 import pathlib
 import re
@@ -188,9 +189,10 @@ def check_edge_managed_configuration(filename, data):
         problems.append(f"{filename}: profileApplicability must be androidDeviceOwner")
 
     try:
-        payload = json.loads(data.get("payloadJson", ""))
-    except (TypeError, json.JSONDecodeError) as exc:
-        return problems + [f"{filename}: payloadJson is not valid embedded JSON - {exc}"]
+        encoded_payload = data.get("payloadJson", "")
+        payload = json.loads(base64.b64decode(encoded_payload, validate=True).decode("utf-8"))
+    except (TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return problems + [f"{filename}: payloadJson is not valid Base64-encoded JSON - {exc}"]
 
     if payload.get("kind") != "androidenterprise#managedConfiguration":
         problems.append(f"{filename}: payloadJson has an invalid kind")
