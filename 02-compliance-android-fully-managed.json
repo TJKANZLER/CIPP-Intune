@@ -1,13 +1,15 @@
 {
   "@odata.type": "#microsoft.graph.androidDeviceOwnerCompliancePolicy",
   "displayName": "Baseline - Android Enterprise (Fully Managed) - Compliance",
-  "description": "Security baseline compliance policy for Android Enterprise corporate-owned, single-user fully managed (COBO) devices. Requires a six-digit complex PIN, encryption, hardware-backed device integrity and Intune app integrity. Pending updates do not directly fail compliance because OEM/carrier availability is unreliable; set a client-specific minimum security patch level instead.",
+  "description": "Security baseline compliance policy for Android Enterprise corporate-owned, single-user fully managed (COBO) devices. Requires a six-digit complex PIN, encryption, hardware-backed device integrity and Intune app integrity. Pending updates do not directly fail compliance because OEM/carrier availability is unreliable. CIPP tenant variables supply the supported Android/security-patch floors and notification-template ID.",
   "roleScopeTagIds": ["0"],
 
   "passwordRequired": true,
   "passwordMinimumLength": 6,
   "passwordRequiredType": "numericComplex",
   "passwordMinutesOfInactivityBeforeLock": 15,
+  "osMinimumVersion": "%androidminimumosversion%",
+  "minAndroidSecurityPatchLevel": "%androidminimumsecuritypatchlevel%",
 
   "storageRequireEncryption": true,
   "securityBlockJailbrokenDevices": true,
@@ -29,6 +31,12 @@
           "actionType": "block",
           "gracePeriodHours": 168,
           "notificationTemplateId": "",
+          "notificationMessageCCList": []
+        },
+        {
+          "actionType": "notification",
+          "gracePeriodHours": 24,
+          "notificationTemplateId": "%androidcompliancenotificationtemplateid%",
           "notificationMessageCCList": []
         }
       ]

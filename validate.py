@@ -60,7 +60,14 @@ HAND_AUTHORED = {
     "IntuneTemplate/32-android-edge-browser.json": "intune-apps-androidmanagedstoreappconfiguration",
 }
 
-ALLOWED_CIPP_TOKENS = {"androidedgeappid", "androidwallpaperurl"}
+ALLOWED_CIPP_TOKENS = {
+    "androidcompliancenotificationtemplateid",
+    "androidedgeappid",
+    "androidfrprecoveryaccount",
+    "androidminimumosversion",
+    "androidminimumsecuritypatchlevel",
+    "androidwallpaperurl",
+}
 PASSTHROUGH_PERCENT_VARS = {"systemroot"}
 POLICY_IDENTITY_FIELDS = {"@odata.type", "displayName", "description", "roleScopeTagIds"}
 
@@ -232,6 +239,43 @@ def check_edge_managed_configuration(filename, data):
     return problems
 
 
+def check_android_tenant_tokens(filename, data):
+    """Keep tenant overlays inside CIPP's policy lifecycle, not post-deploy scripts."""
+    problems = []
+    if filename == "02-compliance-android-fully-managed.json":
+        expected = {
+            "osMinimumVersion": "%androidminimumosversion%",
+            "minAndroidSecurityPatchLevel": "%androidminimumsecuritypatchlevel%",
+        }
+        for key, value in expected.items():
+            if data.get(key) != value:
+                problems.append(f"{filename}: {key} must be the CIPP token {value}")
+        actions = data.get("scheduledActionsForRule", [{}])[0].get(
+            "scheduledActionConfigurations", []
+        )
+        notifications = [a for a in actions if a.get("actionType") == "notification"]
+        if len(notifications) != 1:
+            problems.append(f"{filename}: must contain exactly one notification action")
+        elif (
+            notifications[0].get("gracePeriodHours") != 24
+            or notifications[0].get("notificationTemplateId")
+            != "%androidcompliancenotificationtemplateid%"
+        ):
+            problems.append(
+                f"{filename}: notification must run at 24 hours and use "
+                "%androidcompliancenotificationtemplateid%"
+            )
+    elif filename == "30-android-device-restrictions.json":
+        if data.get("factoryResetDeviceAdministratorEmails") != [
+            "%androidfrprecoveryaccount%"
+        ]:
+            problems.append(
+                f"{filename}: factoryResetDeviceAdministratorEmails must contain only "
+                "%androidfrprecoveryaccount%"
+            )
+    return problems
+
+
 def unwrap_cipp_native_template(filename, stored):
     """Return (Graph policy, problems) from a CIPP-native IntuneTemplate repo entity."""
     if not isinstance(stored, dict) or stored.get("PartitionKey") != "IntuneTemplate":
@@ -298,6 +342,7 @@ def check_hand_authored(refresh=False, max_age_hours=24):
             print(f"  ok  {filename}  ({len(data)} properties, {checked} enums verified)")
         problems += check_compliance_actions(filename, data)
         problems += check_edge_managed_configuration(filename, data)
+        problems += check_android_tenant_tokens(filename, data)
 
         for prop in set(data) - POLICY_IDENTITY_FIELDS:
             property_owners.setdefault((resource, prop), set()).add(filename)

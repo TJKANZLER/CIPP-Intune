@@ -1,7 +1,7 @@
 {
   "@odata.type": "#microsoft.graph.androidDeviceOwnerGeneralDeviceConfiguration",
   "displayName": "Baseline - Android Enterprise (Fully Managed) - Device Restrictions",
-  "description": "Security hardening for Android Enterprise corporate-owned, single-user fully managed devices: blocks sideloading, developer options, USB file transfer, external media and screen capture; blocks personal Google accounts; enforces Play Protect, automatic app and system updates, a six-digit complex PIN and lockout-to-wipe. The kiosk-only network escape hatch is disabled.",
+  "description": "Security hardening for Android Enterprise corporate-owned, single-user fully managed devices: blocks sideloading, developer options, USB file transfer, external media and screen capture; blocks personal Google accounts; enforces Play Protect, automatic app and system updates, a six-digit complex PIN and lockout-to-wipe. The kiosk-only network escape hatch is disabled. A CIPP tenant variable supplies the controlled Factory Reset Protection recovery account.",
   "roleScopeTagIds": ["0"],
 
   "appsAllowInstallFromUnknownSources": false,
@@ -11,6 +11,9 @@
   "appsAutoUpdatePolicy": "always",
 
   "factoryResetBlocked": true,
+  "factoryResetDeviceAdministratorEmails": [
+    "%androidfrprecoveryaccount%"
+  ],
   "networkEscapeHatchAllowed": false,
 
   "storageBlockUsbFileTransfer": true,

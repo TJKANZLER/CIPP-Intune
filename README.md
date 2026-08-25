@@ -60,7 +60,9 @@ The import script reuses the CIPP app registration already set up for the CIPP M
 
 The Android bundle consists of `30` (security and device behaviour), `31` (single-user launcher and branding), `32` (managed Edge browser), and `02` (compliance, assigned only after configuration is healthy). Keeping them separate means browser and branding choices can change without reopening the security policy, while compliance remains gated behind the pilot. App installation and policy assignment remain separate actions.
 
-Before deploying `31`, add Microsoft Launcher through Managed Google Play and assign it as **Required** to the same pilot group. Create a tenant-scoped CIPP custom variable named `androidwallpaperurl` whose value is a direct, publicly reachable HTTPS image URL. CIPP replaces `%androidwallpaperurl%` at deployment, so the template remains portable and the Lloyds URL does not need to be hard-coded in GitHub. Use at least 1080×1920 for phones or 1920×1080 for landscape tablets. Shared/dedicated kiosk devices must use Managed Home Screen instead of this Launcher policy.
+Before deploying the Android bundle, define the required tenant-scoped CIPP variables: `androidminimumosversion`, `androidminimumsecuritypatchlevel`, `androidcompliancenotificationtemplateid`, `androidfrprecoveryaccount`, `androidwallpaperurl` and `androidedgeappid`. This keeps the full deployed policies under CIPP Standards control without putting customer values in GitHub or relying on a post-deployment overlay. The notification variable must identify an existing Intune compliance notification template, and the FRP variable must be a tested corporate Google account.
+
+Before deploying `31`, add Microsoft Launcher through Managed Google Play and assign it as **Required** to the same pilot group. Set `androidwallpaperurl` to a direct, publicly reachable HTTPS image URL. CIPP replaces `%androidwallpaperurl%` at deployment, so the template remains portable and the Lloyds URL does not need to be hard-coded in GitHub. Use at least 1080×1920 for phones or 1920×1080 for landscape tablets. Shared/dedicated kiosk devices must use Managed Home Screen instead of this Launcher policy.
 
 Before deploying `32`, approve and sync Microsoft Edge from Managed Google Play and assign it as **Required** to the same pilot group. Create a tenant-scoped CIPP custom variable named `androidedgeappid` containing that tenant's Intune mobile-app object ID for Microsoft Edge. The stable package ID is included in the policy, while the variable supplies the tenant-specific association required by Graph. Android may still show a one-time browser chooser; select **Edge → Always**. The baseline deliberately keeps Edge password storage enabled because no separate managed password manager is assumed, and requires device PIN/biometric authentication before autofill.
 
@@ -93,14 +95,14 @@ Before deploying `32`, approve and sync Microsoft Edge from Managed Google Play 
 
 These controls need tenant and fleet data before wave 3:
 
-- **Supported OS/build floors** — inactive version fields are omitted rather than sent as empty strings. Add a minimum supported version per platform; for Windows, prefer `validOperatingSystemBuildRanges`. Do not set a maximum version unless there is a deliberate compatibility hold.
-- **Android minimum security patch level** — set this from the supported device/OEM estate. `requireNoPendingSystemUpdates` is deliberately `false`; treating every pending update as immediate noncompliance is too fragile for a generic baseline.
+- **Supported OS/build floors** — Windows, iOS and macOS inactive version fields are omitted rather than sent as empty strings. For Android, define `androidminimumosversion` and `androidminimumsecuritypatchlevel` per tenant before deployment. For Windows, prefer `validOperatingSystemBuildRanges`. Do not set a maximum version unless there is a deliberate compatibility hold.
+- **Android minimum security patch level** — set `androidminimumsecuritypatchlevel` from the supported device/OEM estate. `requireNoPendingSystemUpdates` is deliberately `false`; treating every pending update as immediate noncompliance is too fragile for a generic baseline.
 - **`deviceThreatProtectionEnabled`** — `false` everywhere. Only enable per platform once a Mobile Threat Defense connector (Defender for Endpoint) is actually wired up. Enabled without a connector, devices report no signal and fail compliance for the wrong reason.
 - **Windows VBS/HVCI/DMA compliance checks** — `memoryIntegrityEnabled`, `virtualizationBasedSecurityEnabled`, `kernelDmaProtectionEnabled` and `firmwareProtectionEnabled` are all `false`. They're hardware-dependent. Turn them on only after `17-win-sc-credential-guard.json` is proven on the actual hardware, or you will fail every older machine in the fleet.
 - **`gracePeriodHours: 168`** on every compliance block action gives a seven-day migration window. Shorten only after configuration health and user communications are proven.
 - **Android password posture** — a six-digit `numericComplex` PIN is required in both the restrictions and compliance policies. Move to `alphanumeric` only if Lloyds explicitly accepts the usability and support cost.
 - **Android recovery/data posture** — the kiosk-only network escape hatch is disabled for this single-user fully managed scope. App updates use any network and may consume cellular data; use `wiFiOnly` if cellular cost outweighs delayed app patching.
-- **Compliance notification templates** — the block actions use an empty `notificationTemplateId` (no email). Add a notification action once a message template exists in the target tenant; referencing a template GUID that doesn't exist there will fail the deploy.
+- **Android compliance notification template** — create the tenant's message template first and put its GUID in `androidcompliancenotificationtemplateid`. Referencing a GUID that does not exist in that tenant will fail deployment. The other platform policies still ship with block-only actions and can receive tenant-specific notification actions later.
 
 Still intentionally **out of scope**: Windows Update rings/feature-update policy, Defender for Endpoint onboarding and tamper protection, macOS update/Defender PPPC prerequisites, iOS restrictions, enrollment restrictions, Managed Google Play app creation/assignment, tenant-specific kiosk app allowlists, and App Protection/MAM for BYOD. Treat these as the next layer rather than assuming this set is a complete Intune architecture.
 
@@ -126,6 +128,16 @@ Still intentionally **out of scope**: Windows Update rings/feature-update policy
 | `build.py` | Rebuild atomically from the pinned OpenIntuneBaseline revision and reapply local safety overrides. `--plain` drops endpoint-security template linkage. |
 | `Import-CippIntuneTemplates.ps1` | Bulk-import to CIPP. Dry run by default; duplicate-safe `-Execute`; `-ExistingAction Skip` resumes a partial run; `-Prefix` and `-Only` scope imports. |
 | `manifest.cipp` | Maps each file to its CIPP template type and rollout wave; excluded from CIPP's JSON policy catalog. |
+| `automation/Invoke-AndroidFullyManagedTenant.ps1` | Idempotent plan/apply bootstrap for tenant-specific Android groups, enrollment targeting, compliance floors, FRP, WPA/WPA2 Personal Wi-Fi and Managed Google Play assignments. Never stores the PSK. |
+| `automation/android-fully-managed.example.json` | Redacted tenant configuration example for the Android bootstrap. Copy it outside the public repository before customising it. |
+
+For repeat deployments, add the three Android configuration templates to a CIPP
+package and deploy that package from a **CIPP Standards template** with assignment
+verification enabled. Keep Android compliance in a separate package so it can be
+introduced only after configuration is healthy. CIPP's community library refreshes
+same-named templates from GitHub, while the Standards run compares and remediates
+the live tenant policies. See [automation/README.md](automation/README.md) for the
+exact split between CIPP-owned policy lifecycle and tenant bootstrap automation.
 
 **If an endpoint-security policy is rejected on deploy:** first capture and review the Graph error. As a fallback, `python3 build.py --plain` detaches endpoint-security template linkage and changes delivery to MDM-only Settings Catalog. The CSP values remain the same, but Microsoft Defender security-management targeting no longer applies. Revalidate and retry only the failed file.
 

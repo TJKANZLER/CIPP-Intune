@@ -24,7 +24,7 @@
       "templateType": "deviceCompliancePolicies",
       "platform": "Android Enterprise (COBO - single-user fully managed)",
       "assignOrder": 3,
-      "prerequisite": "Pilot the Android restrictions policy, set a supported OS/minimum security patch level, confirm update behavior, and review Conditional Access before assigning compliance."
+      "prerequisite": "Define androidminimumosversion, androidminimumsecuritypatchlevel and androidcompliancenotificationtemplateid as tenant CIPP variables. Pilot the Android restrictions policy, confirm update behavior, and review Conditional Access before assigning compliance."
     },
     {
       "file": "03-compliance-ios.json",
@@ -110,6 +110,7 @@
       "templateType": "Device",
       "platform": "Android Enterprise (COBO - single-user fully managed)",
       "assignOrder": 2,
+      "prerequisite": "Define androidfrprecoveryaccount as a tested, controlled Google account in the tenant's CIPP variables.",
       "note": "Several restrictions are user-visible. The kiosk-only network escape hatch is disabled. App and system updates install automatically; app updates are allowed on any network and may use cellular data."
     },
     {

@@ -1,0 +1,31 @@
+{
+  "TenantId": "contoso.onmicrosoft.com",
+  "PilotGroupName": "Android Fully Managed - Pilot",
+  "DriversGroupName": "Android Fully Managed - Drivers",
+  "OfficeGroupName": "Android Fully Managed - Office Staff",
+  "EnrollmentProfileName": "Corporate Android Fully Managed",
+  "DeviceNameTemplate": "CORP-{{SERIAL}}",
+  "Policies": {
+    "Compliance": "Baseline - Android Enterprise (Fully Managed) - Compliance",
+    "Restrictions": "Baseline - Android Enterprise (Fully Managed) - Device Restrictions",
+    "Launcher": "Baseline - Android Enterprise (Fully Managed) - Launcher and Branding",
+    "Edge": "Baseline - Android Enterprise - Microsoft Edge"
+  },
+  "Compliance": {
+    "MinimumAndroidVersion": "14",
+    "MinimumSecurityPatchLevel": "2026-05-01",
+    "NotificationTemplateId": ""
+  },
+  "FactoryResetRecoveryAccount": "android-recovery@contoso.com",
+  "Wifi": {
+    "DisplayName": "Corporate Android - Wi-Fi",
+    "Ssid": "Corporate",
+    "Hidden": false
+  },
+  "Apps": [
+    { "DisplayName": "Microsoft Launcher", "Group": "Drivers", "Intent": "required" },
+    { "DisplayName": "Microsoft Launcher", "Group": "Office", "Intent": "required" },
+    { "DisplayName": "Microsoft Edge", "Group": "Drivers", "Intent": "required" },
+    { "DisplayName": "Microsoft Edge", "Group": "Office", "Intent": "required" }
+  ]
+}
