@@ -242,6 +242,28 @@ else {
     if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceCompliancePolicies/$($c.id)/assignments");$assigned=$a.target.groupId -contains $pilot.id;Test-Value 'Compliance' 'Pilot assignment' $expectCompliance $assigned}
 }
 
+# Optional supervised wallpaper; compare the live binary by hash and never print its content.
+if($config.Wallpaper){
+    $configuredWallpaperPath=[string]$config.Wallpaper.ImagePath
+    if(-not [IO.Path]::IsPathRooted($configuredWallpaperPath)){$configuredWallpaperPath=Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $ConfigPath).Path) $configuredWallpaperPath}
+    $wallpaperFileOk=Test-Path -LiteralPath $configuredWallpaperPath -PathType Leaf
+    Add-Result 'Wallpaper' 'Private source image' 'Readable local PNG/JPEG below 750 KB' $(if($wallpaperFileOk){$configuredWallpaperPath}else{'Missing'}) $(if($wallpaperFileOk){'PASS'}else{'FAIL'})
+    $wallpaper=Get-OneByName $deviceConfigs $config.Wallpaper.DisplayName 'Wallpaper profile'
+    if(-not $wallpaper){Add-Result 'Wallpaper' 'Live profile' $config.Wallpaper.DisplayName 'Missing' $(if($expectConfiguration){'FAIL'}else{'INFO'})}
+    elseif($wallpaperFileOk){
+        $wallpaperBytes=[IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $configuredWallpaperPath).Path)
+        $expectedHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($wallpaperBytes)).ToLowerInvariant()
+        $expectedMime=if([IO.Path]::GetExtension($configuredWallpaperPath).ToLowerInvariant() -eq '.png'){'image/png'}else{'image/jpeg'}
+        $liveWallpaper=Invoke-GraphGet "$graphRoot/deviceManagement/deviceConfigurations/$($wallpaper.id)"
+        Test-Value 'Wallpaper' 'Concrete type' '#microsoft.graph.iosDeviceFeaturesConfiguration' $liveWallpaper.'@odata.type'
+        Test-Value 'Wallpaper' 'Display location' $config.Wallpaper.DisplayLocation $liveWallpaper.wallpaperDisplayLocation
+        Test-Value 'Wallpaper' 'MIME type' $expectedMime $liveWallpaper.wallpaperImage.type
+        if([string]::IsNullOrWhiteSpace([string]$liveWallpaper.wallpaperImage.value)){Add-Result 'Wallpaper' 'Image hash' $expectedHash 'Graph returned no image content' 'FAIL'}
+        else{$liveBytes=[Convert]::FromBase64String([string]$liveWallpaper.wallpaperImage.value);$liveHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($liveBytes)).ToLowerInvariant();Test-Value 'Wallpaper' 'Image SHA256' $expectedHash $liveHash}
+        if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceConfigurations/$($wallpaper.id)/assignments");Test-Value 'Wallpaper' 'Pilot assignment' $expectConfiguration ($a.target.groupId -contains $pilot.id)}
+    }
+}
+
 # Wi-Fi and Apps and Books apps; never read or display the PSK.
 $wifi=Get-OneByName $deviceConfigs $config.Wifi.DisplayName 'Wi-Fi profile'
 if(-not $wifi){Add-Result 'Wi-Fi' 'Managed LAF profile' $config.Wifi.DisplayName 'Missing' $(if($expectConfiguration){'FAIL'}else{'INFO'})}

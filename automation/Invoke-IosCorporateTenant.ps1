@@ -7,8 +7,9 @@
     templates and CIPP Standards. This script validates the Apple MDM push
     certificate, Apple Business Manager ADE token, Apps and Books token, ADE
     profile, Company Portal VPP association, exact live policy types and pilot
-    assignments. It creates only missing static groups, an iOS Basic WPA2 Personal
-    Wi-Fi profile, and reviewed Apps and Books assignments.
+    assignments. It creates only missing static groups, an optional supervised
+    iOS/iPadOS wallpaper profile, an iOS Basic WPA2 Personal Wi-Fi profile, and
+    reviewed Apps and Books assignments.
 
     Read-only is the default. -Apply is required for any change. Apple token files,
     certificate material and enrollment payloads are never read or printed. The
@@ -166,6 +167,40 @@ foreach ($requiredWifi in @('DisplayName','NetworkName','Ssid')) {
 if ([bool]$config.Wifi.Hidden) { throw 'This corporate baseline requires a visible SSID; Wifi.Hidden must be false.' }
 if ($RotateWifiKey -and -not $Apply) { throw '-RotateWifiKey requires -Apply.' }
 
+$wallpaperEnabled = $null -ne $config.Wallpaper
+$wallpaperPath = $null
+$wallpaperBytes = $null
+$wallpaperMimeType = $null
+$wallpaperSha256 = $null
+if ($wallpaperEnabled) {
+    foreach ($requiredWallpaper in @('DisplayName','ImagePath','DisplayLocation')) {
+        if ([string]::IsNullOrWhiteSpace([string]$config.Wallpaper.$requiredWallpaper)) { throw "Configuration is missing 'Wallpaper.$requiredWallpaper'." }
+    }
+    if ([string]$config.Wallpaper.DisplayLocation -notin @('lockScreen','homeScreen','lockAndHomeScreens')) {
+        throw 'Wallpaper.DisplayLocation must be lockScreen, homeScreen, or lockAndHomeScreens.'
+    }
+    $configuredWallpaperPath = [string]$config.Wallpaper.ImagePath
+    if (-not [IO.Path]::IsPathRooted($configuredWallpaperPath)) {
+        $configuredWallpaperPath = Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $ConfigPath).Path) $configuredWallpaperPath
+    }
+    if (-not (Test-Path -LiteralPath $configuredWallpaperPath -PathType Leaf)) { throw "Wallpaper image not found: $configuredWallpaperPath" }
+    $wallpaperPath = (Resolve-Path -LiteralPath $configuredWallpaperPath).Path
+    $wallpaperBytes = [IO.File]::ReadAllBytes($wallpaperPath)
+    if ($wallpaperBytes.Length -eq 0 -or $wallpaperBytes.Length -ge 750KB) { throw 'Wallpaper image must be non-empty and less than 750 KB.' }
+    $extension = [IO.Path]::GetExtension($wallpaperPath).ToLowerInvariant()
+    if ($extension -in @('.jpg','.jpeg')) {
+        if ($wallpaperBytes.Length -lt 3 -or $wallpaperBytes[0] -ne 0xFF -or $wallpaperBytes[1] -ne 0xD8 -or $wallpaperBytes[2] -ne 0xFF) { throw 'Wallpaper has a JPEG extension but not a JPEG signature.' }
+        $wallpaperMimeType = 'image/jpeg'
+    } elseif ($extension -eq '.png') {
+        $pngSignature = @(0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A)
+        if ($wallpaperBytes.Length -lt 8 -or (Compare-Object -ReferenceObject $pngSignature -DifferenceObject @($wallpaperBytes[0..7]))) { throw 'Wallpaper has a PNG extension but not a PNG signature.' }
+        $wallpaperMimeType = 'image/png'
+    } else {
+        throw 'Wallpaper image must have a .png, .jpg, or .jpeg extension.'
+    }
+    $wallpaperSha256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($wallpaperBytes)).ToLowerInvariant()
+}
+
 $context = Get-MgContext
 $mustConnect = -not $context -or @($requiredScopes | Where-Object { $_ -notin $context.Scopes }).Count -gt 0
 if (-not $mustConnect) {
@@ -270,6 +305,56 @@ foreach ($check in @(
         $assigned = $assignments.target.groupId -contains $pilot.id
         $wanted = [bool]$check.ShouldAssign
         Add-Outcome 'CIPP assignment' "$($check.Label) -> Pilot" $(if ($assigned -eq $wanted) { 'Correct for wave' } else { 'Mismatch' }) "assigned=$assigned; expected=$wanted; remediate with CIPP Standards"
+    }
+}
+
+if ($wallpaperEnabled -and -not $ComplianceWave) {
+    $wallpaperName = [string]$config.Wallpaper.DisplayName
+    $wallpaper = Get-OneByDisplayName $deviceConfigs $wallpaperName 'Wallpaper profile'
+    if ($wallpaper -and $wallpaper.'@odata.type' -ne '#microsoft.graph.iosDeviceFeaturesConfiguration') {
+        throw "'$wallpaperName' exists but is not an iOS/iPadOS Device features profile."
+    }
+    $wallpaperDescription = "Tenant-specific supervised iOS/iPadOS wallpaper. Source SHA256: $wallpaperSha256"
+    $wallpaperCorrect = $wallpaper -and
+        $wallpaper.wallpaperDisplayLocation -eq [string]$config.Wallpaper.DisplayLocation -and
+        $wallpaper.description -eq $wallpaperDescription
+    if ($wallpaperCorrect) {
+        Add-Outcome 'Wallpaper' $wallpaperName 'Present' "location=$($wallpaper.wallpaperDisplayLocation); sha256=$($wallpaperSha256.Substring(0, 12))..."
+    } elseif (-not $Apply) {
+        Add-Outcome 'Wallpaper' $wallpaperName $(if ($wallpaper) { 'Would update' } else { 'Would create' }) "location=$($config.Wallpaper.DisplayLocation); image validated; bytes=$($wallpaperBytes.Length); sha256=$($wallpaperSha256.Substring(0, 12))..."
+    } else {
+        $wallpaperBody = @{
+            '@odata.type' = '#microsoft.graph.iosDeviceFeaturesConfiguration'
+            displayName = $wallpaperName
+            description = $wallpaperDescription
+            roleScopeTagIds = @('0')
+            wallpaperDisplayLocation = [string]$config.Wallpaper.DisplayLocation
+            wallpaperImage = @{
+                '@odata.type' = '#microsoft.graph.mimeContent'
+                type = $wallpaperMimeType
+                value = [Convert]::ToBase64String($wallpaperBytes)
+            }
+        }
+        if ($wallpaper) {
+            Invoke-GraphJson -Method PATCH -Uri "$graphRoot/deviceManagement/deviceConfigurations/$($wallpaper.id)" -Body $wallpaperBody | Out-Null
+        } else {
+            $wallpaper = Invoke-GraphJson -Method POST -Uri "$graphRoot/deviceManagement/deviceConfigurations" -Body $wallpaperBody
+        }
+        $readBack = Invoke-GraphJson -Method GET -Uri "$graphRoot/deviceManagement/deviceConfigurations/$($wallpaper.id)"
+        if ($readBack.'@odata.type' -ne '#microsoft.graph.iosDeviceFeaturesConfiguration' -or
+            $readBack.wallpaperDisplayLocation -ne [string]$config.Wallpaper.DisplayLocation -or
+            $readBack.description -ne $wallpaperDescription -or
+            $readBack.wallpaperImage.type -ne $wallpaperMimeType -or
+            [string]::IsNullOrWhiteSpace([string]$readBack.wallpaperImage.value)) {
+            throw 'Wallpaper read-back verification failed.'
+        }
+        $readBackBytes = [Convert]::FromBase64String([string]$readBack.wallpaperImage.value)
+        $readBackSha256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($readBackBytes)).ToLowerInvariant()
+        if ($readBackSha256 -ne $wallpaperSha256) { throw 'Wallpaper image hash read-back verification failed.' }
+        Add-Outcome 'Wallpaper' $wallpaperName 'Written and verified' "location=$($readBack.wallpaperDisplayLocation); bytes=$($readBackBytes.Length); sha256=$($wallpaperSha256.Substring(0, 12))..."
+    }
+    if ($wallpaper -and $pilot) {
+        Ensure-Assignment -AssignmentsUri "$graphRoot/deviceManagement/deviceConfigurations/$($wallpaper.id)/assignments" -GroupId $pilot.id -Kind Policy -Label "$wallpaperName -> Pilot"
     }
 }
 

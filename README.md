@@ -80,7 +80,7 @@ Define `iosminimumosversion` and `ioscompliancenotificationtemplateid` as tenant
 
 The core deliberately does not block screenshots or AirDrop, ban personal Apple Accounts, enable Activation Lock, block all host pairing, or block all iCloud backup. AirDrop is treated as an unmanaged destination and managed documents cannot open in unmanaged apps. These omitted controls have material usability, recovery, contact-sync or technician-support consequences and must be decided with the customer after a real pilot. The profile also explicitly leaves joining non-managed Wi-Fi networks available.
 
-Company Portal and all other iOS apps must come from Apple Business Manager Apps and Books with device licensing. For ADE with Setup Assistant modern authentication, select **Install Company Portal with VPP** in the enrollment profile; do not ask users to install Company Portal manually from the public App Store. Apple tokens, app licences, ADE profiles, Wi-Fi secrets and wallpaper image payloads are tenant-specific and are not stored in this repository.
+Company Portal and all other iOS apps must come from Apple Business Manager Apps and Books with device licensing. For ADE with Setup Assistant modern authentication, select **Install Company Portal with VPP** in the enrollment profile; do not ask users to install Company Portal manually from the public App Store. Apple tokens, app licences, ADE profiles, Wi-Fi secrets and wallpaper image payloads are tenant-specific and are not stored in this repository. The iOS bootstrap can upload a private local wallpaper into an exact-type Device features profile, while validating its format and size and never logging the encoded image.
 
 ---
 

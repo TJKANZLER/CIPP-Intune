@@ -107,6 +107,13 @@ Copy `ios-corporate.example.config` outside the public repository. Fill in names
 never put APNs certificate material, ADE `.p7m` files, Apps and Books token files,
 Wi-Fi keys or enrollment payloads in JSON or Git.
 
+`Wallpaper` is optional. Point `ImagePath` at a private local PNG/JPG/JPEG file
+outside the repository and select `lockScreen`, `homeScreen` or
+`lockAndHomeScreens`. The bootstrap rejects empty files, invalid signatures and
+images of 750 KB or larger, never prints the base64 content, and verifies the
+live image hash after every write. Wallpaper deployment requires a supervised
+device and remains in the configuration wave.
+
 ```powershell
 # Read-only plan
 ./automation/Invoke-IosCorporateTenant.ps1 -ConfigPath /path/to/tenant.json
