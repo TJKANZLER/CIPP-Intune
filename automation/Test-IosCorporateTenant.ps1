@@ -189,7 +189,9 @@ $context = Get-MgContext
 $mustConnect = -not $context -or @($scopes | Where-Object { $_ -notin $context.Scopes }).Count -gt 0
 if (-not $mustConnect) { try { Invoke-GraphGet "$graphRoot/deviceManagement/deviceConfigurations?`$top=1" | Out-Null } catch { $mustConnect=$true } }
 if ($mustConnect) {
-    Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
+    if ($GraphContextScope -eq 'Process') {
+        Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
+    }
     Connect-MgGraph -TenantId $config.TenantId -Scopes $scopes -ContextScope $GraphContextScope -NoWelcome
 }
 
