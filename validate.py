@@ -310,6 +310,7 @@ def check_ios_policy_safety(filename, data):
             "appStoreBlockUIAppInstallation": True,
             "deviceBlockNameModification": True,
             "cellularBlockPersonalHotspot": False,
+            "cellularBlockDataRoaming": False,
             "iCloudBlockBackup": True,
             "iCloudBlockManagedAppsSync": True,
             "iCloudBlockDocumentSync": True,

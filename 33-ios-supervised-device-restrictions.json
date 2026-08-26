@@ -18,6 +18,7 @@
   "appStoreBlockUIAppInstallation": true,
   "deviceBlockNameModification": true,
   "cellularBlockPersonalHotspot": false,
+  "cellularBlockDataRoaming": false,
 
   "airDropBlocked": true,
   "airDropForceUnmanagedDropTarget": true,
