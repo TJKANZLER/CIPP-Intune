@@ -214,6 +214,7 @@ else {
         @('User Activation Lock not permitted',$false,$r.activationLockAllowWhenSupervised),
         @('User App Store installations blocked',$true,$r.appStoreBlockUIAppInstallation),
         @('Device-name changes blocked',$true,$r.deviceBlockNameModification),
+        @('Personal Hotspot allowed',$false,$r.cellularBlockPersonalHotspot),
         @('iCloud backup blocked',$true,$r.iCloudBlockBackup),
         @('iCloud managed-app sync blocked',$true,$r.iCloudBlockManagedAppsSync),
         @('iCloud document sync blocked',$true,$r.iCloudBlockDocumentSync),
