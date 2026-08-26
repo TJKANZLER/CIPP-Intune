@@ -222,6 +222,7 @@ else {
         @('iCloud Keychain sync blocked',$true,$r.keychainBlockCloudSync),
         @('AirDrop blocked',$true,$r.airDropBlocked),@('AirDrop treated unmanaged',$true,$r.airDropForceUnmanagedDropTarget),
         @('Screenshots allowed',$false,$r.screenCaptureBlocked),@('USB Files access blocked',$true,$r.filesUsbDriveAccessBlocked),
+        @('Computer pairing blocked',$true,$r.hostPairingBlocked),
         @('Other Wi-Fi networks remain allowed',$false,$r.wiFiConnectToAllowedNetworksOnlyForced)
     )){Test-Value 'Restrictions' $test[0] $test[1] $test[2]}
     if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceConfigurations/$($r.id)/assignments");$assigned=$a.target.groupId -contains $pilot.id;Test-Value 'Restrictions' 'Pilot assignment' $expectConfiguration $assigned}

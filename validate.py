@@ -321,20 +321,13 @@ def check_ios_policy_safety(filename, data):
             "documentsBlockManagedDocumentsInUnmanagedApps": True,
             "documentsBlockUnmanagedDocumentsInManagedApps": False,
             "filesUsbDriveAccessBlocked": True,
+            "hostPairingBlocked": True,
             "wiFiConnectOnlyToConfiguredNetworks": False,
             "wiFiConnectToAllowedNetworksOnlyForced": False,
         }
         for key, value in expected.items():
             if data.get(key) is not value:
                 problems.append(f"{filename}: {key} must be {value}")
-        disruptive = {
-            "hostPairingBlocked",
-        }
-        configured = sorted(disruptive & set(data))
-        if configured:
-            problems.append(
-                f"{filename}: support-sensitive decisions must remain unconfigured: {configured}"
-            )
     return problems
 
 
