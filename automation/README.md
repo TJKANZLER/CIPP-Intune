@@ -126,7 +126,9 @@ device and remains in the configuration wave.
 ```
 
 The script creates only missing static groups, a correctly typed iOS Basic WPA2
-Personal Wi-Fi profile and reviewed app assignments. It refuses duplicate display
+Personal Wi-Fi profile and reviewed app assignments. Required apps default to
+`isRemovable: false`; Available apps default to `isRemovable: true`, with an optional
+per-app `IsRemovable` boolean override in the tenant configuration. It refuses duplicate display
 names, verifies every write, never changes CIPP-owned policy content, and stops
 before writing when an Apple prerequisite is absent. ADE token upload, Apple device
 assignment, Apps and Books token upload/app acquisition, Company Portal selection

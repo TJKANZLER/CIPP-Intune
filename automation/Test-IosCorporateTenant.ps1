@@ -220,6 +220,31 @@ else {
         @('Camera allowed',$false,$r.cameraBlocked),
         @('Bluetooth settings remain user-controllable',$false,$r.bluetoothBlockModification),
         @('Messages allowed',$false,$r.messagesBlocked),
+        @('Siri allowed while unlocked',$false,$r.siriBlocked),
+        @('Dictation allowed',$false,$r.keyboardBlockDictation),
+        @('Keyboard autocorrect allowed',$false,$r.keyboardBlockAutoCorrect),
+        @('Predictive keyboard allowed',$false,$r.keyboardBlockPredictive),
+        @('Keyboard shortcuts allowed',$false,$r.keyboardBlockShortcuts),
+        @('Keyboard spellcheck allowed',$false,$r.keyboardBlockSpellCheck),
+        @('Touch ID and Face ID unlock allowed',$false,$r.passcodeBlockFingerprintUnlock),
+        @('Touch ID and Face ID changes allowed',$false,$r.passcodeBlockFingerprintModification),
+        @('Notification settings user-controllable',$false,$r.notificationsBlockSettingsModification),
+        @('Handoff allowed',$false,$r.iCloudBlockActivityContinuation),
+        @('AirPrint allowed',$false,$r.airPrintBlocked),
+        @('Apple Books Store allowed',$false,$r.iBooksStoreBlocked),
+        @('Apple Music allowed',$false,$r.iTunesBlockMusicService),
+        @('Apple Radio allowed',$false,$r.iTunesBlockRadio),
+        @('Podcasts allowed',$false,$r.podcastsBlocked),
+        @('Cellular-plan changes allowed',$false,$r.cellularBlockPlanModification),
+        @('eSIM changes allowed',$false,$r.esimBlockModification),
+        @('General app removal allowed',$false,$r.appRemovalBlocked),
+        @('System app removal allowed',$false,$r.blockSystemAppRemoval),
+        @('Game Center blocked',$true,$r.gameCenterBlocked),
+        @('Game Center friends blocked',$true,$r.gamingBlockGameCenterFriends),
+        @('Game Center multiplayer blocked',$true,$r.gamingBlockMultiplayer),
+        @('Unmanaged VPN creation blocked',$true,$r.vpnBlockCreation),
+        @('Find My Friends changes blocked',$true,$r.findMyFriendsBlocked),
+        @('Automatic date and time forced',$true,$r.dateAndTimeForceSetAutomatically),
         @('iCloud backup blocked',$true,$r.iCloudBlockBackup),
         @('iCloud managed-app sync blocked',$true,$r.iCloudBlockManagedAppsSync),
         @('iCloud document sync blocked',$true,$r.iCloudBlockDocumentSync),
@@ -306,7 +331,7 @@ foreach($wanted in @($config.Apps)){
     $typeOk=$app.'@odata.type' -eq '#microsoft.graph.iosVppApp' -and (-not $vpp -or $app.vppTokenId -eq $vpp.id) -and [bool]$app.licensingType.supportsDeviceLicensing
     Add-Result 'Apps' "$($wanted.DisplayName) identity" 'iosVppApp linked to expected token; device licensing supported' "ID $($app.id); type $($app.'@odata.type'); VPP $($app.vppTokenId); device licensing=$($app.licensingType.supportsDeviceLicensing)" $(if($typeOk){'PASS'}else{'FAIL'})
     $target=$groups[$wanted.Group]
-    if($target){$a=@(Get-GraphCollection "$graphRoot/deviceAppManagement/mobileApps/$($app.id)/assignments");$match=$a|Where-Object{$_.target.groupId -eq $target.id -and $_.intent -eq $wanted.Intent -and $_.settings.useDeviceLicensing};Add-Result 'Apps' "$($wanted.DisplayName) -> $($wanted.Group)" "$($wanted.Intent), device licensed" ([bool]$match) $(if($match){'PASS'}elseif($expectConfiguration){'FAIL'}else{'INFO'})}
+    if($target){$expectedRemovable=if($null -ne $wanted.IsRemovable){[bool]$wanted.IsRemovable}else{$wanted.Intent -ne 'required'};$a=@(Get-GraphCollection "$graphRoot/deviceAppManagement/mobileApps/$($app.id)/assignments");$match=$a|Where-Object{$_.target.groupId -eq $target.id -and $_.intent -eq $wanted.Intent -and $_.settings.useDeviceLicensing -and $null -ne $_.settings.isRemovable -and [bool]$_.settings.isRemovable -eq $expectedRemovable};Add-Result 'Apps' "$($wanted.DisplayName) -> $($wanted.Group)" "$($wanted.Intent), device licensed, removable=$expectedRemovable" ([bool]$match) $(if($match){'PASS'}elseif($expectConfiguration){'FAIL'}else{'INFO'})}
 }
 
 # Enrollment restrictions

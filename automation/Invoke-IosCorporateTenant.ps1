@@ -116,6 +116,7 @@ function Ensure-Assignment {
         [Parameter(Mandatory)][string]$GroupId,
         [Parameter(Mandatory)][ValidateSet('Policy', 'App')][string]$Kind,
         [ValidateSet('available', 'required')][string]$Intent,
+        [Nullable[bool]]$IsRemovable,
         [Parameter(Mandatory)][string]$Label
     )
     $assignments = @(Get-GraphCollection $AssignmentsUri)
@@ -127,6 +128,9 @@ function Ensure-Assignment {
     if ($Kind -eq 'App' -and $sameIntent -and @($sameIntent | Where-Object { -not $_.settings.useDeviceLicensing }).Count) {
         throw "$Label exists without device licensing. Resolve the assignment before rerunning."
     }
+    if ($Kind -eq 'App' -and $sameIntent -and $null -ne $IsRemovable -and @($sameIntent | Where-Object { $null -eq $_.settings.isRemovable -or [bool]$_.settings.isRemovable -ne [bool]$IsRemovable }).Count) {
+        throw "$Label exists with the wrong app-removal setting. Resolve the assignment before rerunning."
+    }
     $present = $sameIntent.Count -gt 0
     if ($present) { Add-Outcome 'Assignments' $Label 'Present' ($Intent ?? 'assigned'); return }
     if (-not $Apply) { Add-Outcome 'Assignments' $Label 'Would add' ($Intent ?? 'assigned'); return }
@@ -136,7 +140,11 @@ function Ensure-Assignment {
             '@odata.type' = '#microsoft.graph.mobileAppAssignment'
             intent = $Intent
             target = @{ '@odata.type' = '#microsoft.graph.groupAssignmentTarget'; groupId = $GroupId }
-            settings = @{ '@odata.type' = '#microsoft.graph.iosVppAppAssignmentSettings'; useDeviceLicensing = $true }
+            settings = @{
+                '@odata.type' = '#microsoft.graph.iosVppAppAssignmentSettings'
+                useDeviceLicensing = $true
+                isRemovable = [bool]$IsRemovable
+            }
         }
     } else {
         $body = @{
@@ -147,7 +155,7 @@ function Ensure-Assignment {
     Invoke-GraphJson -Method POST -Uri $AssignmentsUri -Body $body | Out-Null
     $verified = @(Get-GraphCollection $AssignmentsUri | Where-Object {
         $_.target.groupId -eq $GroupId -and
-        ($Kind -eq 'Policy' -or ($_.intent -eq $Intent -and $_.settings.useDeviceLicensing))
+        ($Kind -eq 'Policy' -or ($_.intent -eq $Intent -and $_.settings.useDeviceLicensing -and $null -ne $_.settings.isRemovable -and [bool]$_.settings.isRemovable -eq [bool]$IsRemovable))
     })
     if ($verified.Count -eq 0) { throw "Assignment verification failed for '$Label'." }
     Add-Outcome 'Assignments' $Label 'Added' ($Intent ?? 'assigned')
@@ -430,7 +438,8 @@ foreach ($wanted in @($config.Apps)) {
     if (-not [bool]$app.licensingType.supportsDeviceLicensing) { throw "'$($wanted.DisplayName)' does not support Apps and Books device licensing." }
     $target = $groupsByKey[$wanted.Group]
     if (-not $target) { Add-Outcome 'Apps' "$($wanted.DisplayName) -> $($wanted.Group)" 'Waiting' 'Target group will be created during apply'; continue }
-    Ensure-Assignment -AssignmentsUri "$graphRoot/deviceAppManagement/mobileApps/$($app.id)/assignments" -GroupId $target.id -Kind App -Intent $wanted.Intent -Label "$($wanted.DisplayName) -> $($wanted.Group)"
+    $isRemovable = if ($null -ne $wanted.IsRemovable) { [bool]$wanted.IsRemovable } else { $wanted.Intent -ne 'required' }
+    Ensure-Assignment -AssignmentsUri "$graphRoot/deviceAppManagement/mobileApps/$($app.id)/assignments" -GroupId $target.id -Kind App -Intent $wanted.Intent -IsRemovable $isRemovable -Label "$($wanted.DisplayName) -> $($wanted.Group)"
 }
 
 Write-Host ''
