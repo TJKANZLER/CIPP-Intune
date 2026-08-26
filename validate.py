@@ -316,6 +316,7 @@ def check_ios_policy_safety(filename, data):
             "iCloudBlockSharedPhotoStream": True,
             "iCloudPrivateRelayBlocked": True,
             "keychainBlockCloudSync": True,
+            "appleWatchBlockPairing": True,
             "airDropBlocked": True,
             "airDropForceUnmanagedDropTarget": True,
             "screenCaptureBlocked": False,

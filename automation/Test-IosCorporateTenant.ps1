@@ -224,6 +224,7 @@ else {
         @('AirDrop blocked',$true,$r.airDropBlocked),@('AirDrop treated unmanaged',$true,$r.airDropForceUnmanagedDropTarget),
         @('Screenshots allowed',$false,$r.screenCaptureBlocked),@('USB Files access blocked',$true,$r.filesUsbDriveAccessBlocked),
         @('Computer pairing blocked',$true,$r.hostPairingBlocked),
+        @('Apple Watch pairing blocked',$true,$r.appleWatchBlockPairing),
         @('Wallpaper changes blocked',$true,$r.wallpaperBlockModification),
         @('Other Wi-Fi networks remain allowed',$false,$r.wiFiConnectToAllowedNetworksOnlyForced)
     )){Test-Value 'Restrictions' $test[0] $test[1] $test[2]}
