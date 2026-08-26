@@ -9,12 +9,12 @@ Generic, security-focused Intune policy set for import into CIPP as reusable **I
 ## Quick start
 
 ```bash
-python3 validate.py --refresh                # validate all 18 against current Graph/CIPP data
+python3 validate.py --refresh                # validate all 20 against current Graph/CIPP data
 pwsh ./Import-CippIntuneTemplates.ps1        # dry run — shows what would be created
 pwsh ./Import-CippIntuneTemplates.ps1 -Execute   # actually create the templates in CIPP
 ```
 
-The import script reuses the CIPP app registration already set up for the CIPP MCP bridge (`~/.local/share/cipp-mcp/config.json`). It creates templates only — **nothing is assigned to any device**. Assignment stays a deliberate separate step; see [Rollout order](#rollout-order).
+The import script reuses the CIPP app registration already set up for the CIPP MCP bridge (`~/.local/share/cipp-mcp/config.json`). It creates templates only — **nothing is assigned to any device**. Assignment stays a deliberate separate step; follow [DEPLOYMENT.md](DEPLOYMENT.md) and then the [rollout order](#rollout-order). See [POLICY-GUIDE.md](POLICY-GUIDE.md) for a technician-readable explanation of every policy and its expected impact.
 
 ---
 
