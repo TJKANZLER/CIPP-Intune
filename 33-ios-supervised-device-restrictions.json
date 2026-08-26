@@ -20,6 +20,7 @@
   "cellularBlockPersonalHotspot": false,
   "cellularBlockDataRoaming": false,
   "cellularBlockVoiceRoaming": false,
+  "cameraBlocked": false,
 
   "airDropBlocked": true,
   "airDropForceUnmanagedDropTarget": true,
