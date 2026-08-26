@@ -219,6 +219,7 @@ else {
         @('Voice-call roaming allowed',$false,$r.cellularBlockVoiceRoaming),
         @('Camera allowed',$false,$r.cameraBlocked),
         @('Bluetooth settings remain user-controllable',$false,$r.bluetoothBlockModification),
+        @('Messages allowed',$false,$r.messagesBlocked),
         @('iCloud backup blocked',$true,$r.iCloudBlockBackup),
         @('iCloud managed-app sync blocked',$true,$r.iCloudBlockManagedAppsSync),
         @('iCloud document sync blocked',$true,$r.iCloudBlockDocumentSync),

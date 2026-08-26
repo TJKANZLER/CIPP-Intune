@@ -22,6 +22,7 @@
   "cellularBlockVoiceRoaming": false,
   "cameraBlocked": false,
   "bluetoothBlockModification": false,
+  "messagesBlocked": false,
 
   "airDropBlocked": true,
   "airDropForceUnmanagedDropTarget": true,
