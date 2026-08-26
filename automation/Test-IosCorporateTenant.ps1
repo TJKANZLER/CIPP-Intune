@@ -73,7 +73,10 @@ function Get-SettingInstances {
     function Walk($Value) {
         if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string] -and $Value -isnot [System.Collections.IDictionary]) {
             foreach ($entry in $Value) { Walk $entry }
-        } elseif ($Value -is [System.Collections.IDictionary] -or $Value -is [pscustomobject]) {
+        } elseif ($Value -is [System.Collections.IDictionary]) {
+            if ($Value.Contains('settingDefinitionId')) { $found.Add($Value) }
+            foreach ($entry in $Value.Values) { Walk $entry }
+        } elseif ($Value -is [pscustomobject]) {
             if ($Value.settingDefinitionId) { $found.Add($Value) }
             foreach ($property in $Value.PSObject.Properties) { Walk $property.Value }
         }
@@ -95,10 +98,16 @@ function Test-ExpectedProperties {
     foreach ($property in $Expected.PSObject.Properties) {
         if ($property.Name -in $Skip) { continue }
         $checked++
-        $actualProperty = $Actual.PSObject.Properties[$property.Name]
-        if ($null -eq $actualProperty) { $missing.Add($property.Name); continue }
+        if ($Actual -is [System.Collections.IDictionary]) {
+            if (-not $Actual.Contains($property.Name)) { $missing.Add($property.Name); continue }
+            $actualValue = $Actual[$property.Name]
+        } else {
+            $actualProperty = $Actual.PSObject.Properties[$property.Name]
+            if ($null -eq $actualProperty) { $missing.Add($property.Name); continue }
+            $actualValue = $actualProperty.Value
+        }
         $expectedJson = $property.Value | ConvertTo-Json -Depth 50 -Compress
-        $actualJson = $actualProperty.Value | ConvertTo-Json -Depth 50 -Compress
+        $actualJson = $actualValue | ConvertTo-Json -Depth 50 -Compress
         if ($expectedJson -cne $actualJson) { $different.Add($property.Name) }
     }
     $ok = -not $missing.Count -and -not $different.Count
