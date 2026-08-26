@@ -4,6 +4,10 @@ Generic, security-focused Intune policy set for import into CIPP as reusable **I
 
 20 policies across Windows, Android Enterprise, iOS/iPadOS and macOS. Every policy is validated before it ships (`python3 validate.py`) and can be bulk-imported in one command.
 
+New to this repository or deploying through the CIPP interface? Start with the
+[Simple CIPP Intune guide](CIPP-QUICK-GUIDE.md). It explains the complete CIPP
+workflow and every policy without requiring scripts or Graph knowledge.
+
 ---
 
 ## Quick start
