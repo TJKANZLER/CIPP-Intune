@@ -305,6 +305,8 @@ def check_ios_policy_safety(filename, data):
             )
     elif filename == "33-ios-supervised-device-restrictions.json":
         expected = {
+            "accountBlockModification": True,
+            "activationLockAllowWhenSupervised": False,
             "airDropBlocked": False,
             "airDropForceUnmanagedDropTarget": True,
             "screenCaptureBlocked": False,
@@ -318,8 +320,6 @@ def check_ios_policy_safety(filename, data):
             if data.get(key) is not value:
                 problems.append(f"{filename}: {key} must be {value}")
         disruptive = {
-            "accountBlockModification",
-            "activationLockAllowWhenSupervised",
             "hostPairingBlocked",
             "iCloudBlockBackup",
         }

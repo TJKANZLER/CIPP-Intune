@@ -210,6 +210,8 @@ else {
         @('Six-digit passcode',6,$r.passcodeMinimumLength),@('Simple passcodes blocked',$true,$r.passcodeBlockSimple),
         @('Managed documents blocked from unmanaged apps',$true,$r.documentsBlockManagedDocumentsInUnmanagedApps),
         @('Unmanaged documents allowed in managed apps',$false,$r.documentsBlockUnmanagedDocumentsInManagedApps),
+        @('User account changes blocked',$true,$r.accountBlockModification),
+        @('User Activation Lock not permitted',$false,$r.activationLockAllowWhenSupervised),
         @('AirDrop allowed',$false,$r.airDropBlocked),@('AirDrop treated unmanaged',$true,$r.airDropForceUnmanagedDropTarget),
         @('Screenshots allowed',$false,$r.screenCaptureBlocked),@('USB Files access blocked',$true,$r.filesUsbDriveAccessBlocked),
         @('Other Wi-Fi networks remain allowed',$false,$r.wiFiConnectToAllowedNetworksOnlyForced)
