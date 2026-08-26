@@ -147,8 +147,11 @@ function Get-CippTemplates {
     } finally { $secret=$null }
     $apiBase = ([string]$settings.CippMcpUrl) -replace '(?i)/api/ExecMcp/?$',''
     $response = Invoke-RestMethod -Method Get -Uri "$apiBase/api/ListIntuneTemplates?View=true" -Headers @{Authorization="Bearer $($token.access_token)";Accept='application/json'}
-    if ($response.Results) { return @($response.Results | ForEach-Object { $_ }) }
-    return @($response | ForEach-Object { $_ })
+    $responseItems = @($response)
+    if ($responseItems.Count -eq 1 -and $responseItems[0].PSObject.Properties['Results']) {
+        return @($responseItems[0].Results)
+    }
+    return $responseItems
 }
 
 if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { throw "Configuration not found: $ConfigPath" }
