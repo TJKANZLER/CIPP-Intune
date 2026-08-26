@@ -307,6 +307,14 @@ def check_ios_policy_safety(filename, data):
         expected = {
             "accountBlockModification": True,
             "activationLockAllowWhenSupervised": False,
+            "iCloudBlockBackup": True,
+            "iCloudBlockManagedAppsSync": True,
+            "iCloudBlockDocumentSync": True,
+            "iCloudBlockPhotoLibrary": True,
+            "iCloudBlockPhotoStreamSync": True,
+            "iCloudBlockSharedPhotoStream": True,
+            "iCloudPrivateRelayBlocked": True,
+            "keychainBlockCloudSync": True,
             "airDropBlocked": False,
             "airDropForceUnmanagedDropTarget": True,
             "screenCaptureBlocked": False,
@@ -321,7 +329,6 @@ def check_ios_policy_safety(filename, data):
                 problems.append(f"{filename}: {key} must be {value}")
         disruptive = {
             "hostPairingBlocked",
-            "iCloudBlockBackup",
         }
         configured = sorted(disruptive & set(data))
         if configured:
