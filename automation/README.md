@@ -161,3 +161,8 @@ Run the deep audit at every gate:
 Set the tenant JSON `RolloutWave` to `Prerequisites`, `Configuration`, then
 `Compliance` as each gate is approved. The audit changes its assignment and device
 expectations accordingly and exits non-zero for failures or unresolved decisions.
+If the two CIPP-owned configuration policies are deliberately staged to an empty,
+device-only pilot group before Apple prerequisites are complete, set
+`CippConfigurationAssignmentsStaged` to `true`. This changes only the expected
+assignment state for restrictions and managed updates; it does not treat Wi-Fi,
+apps, wallpaper, enrollment or the physical pilot as complete.

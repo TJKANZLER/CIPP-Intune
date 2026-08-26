@@ -14,7 +14,8 @@
 param(
     [Parameter(Mandatory)][string]$ConfigPath,
     [string]$CippConfigPath = (Join-Path ($env:XDG_DATA_HOME ? $env:XDG_DATA_HOME : (Join-Path $HOME '.local/share')) 'cipp-mcp/config.json'),
-    [string]$TemplateRoot = (Split-Path -Parent $PSScriptRoot)
+    [string]$TemplateRoot = (Split-Path -Parent $PSScriptRoot),
+    [ValidateSet('Process','CurrentUser')][string]$GraphContextScope = 'Process'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -189,7 +190,7 @@ $mustConnect = -not $context -or @($scopes | Where-Object { $_ -notin $context.S
 if (-not $mustConnect) { try { Invoke-GraphGet "$graphRoot/deviceManagement/deviceConfigurations?`$top=1" | Out-Null } catch { $mustConnect=$true } }
 if ($mustConnect) {
     Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
-    Connect-MgGraph -TenantId $config.TenantId -Scopes $scopes -ContextScope Process -NoWelcome
+    Connect-MgGraph -TenantId $config.TenantId -Scopes $scopes -ContextScope $GraphContextScope -NoWelcome
 }
 
 Write-Host "Auditing corporate iOS/iPadOS rollout; expected wave: $wave. No changes will be made." -ForegroundColor Cyan
@@ -293,6 +294,7 @@ $compliance=Get-OneByName $compliancePolicies $config.Policies.Compliance 'Compl
 
 $expectConfiguration=$wave -in @('Configuration','Compliance')
 $expectCompliance=$wave -eq 'Compliance'
+$expectCippConfigurationAssignments = $expectConfiguration -or [bool]$config.CippConfigurationAssignmentsStaged
 if(-not $restrictions){Add-Result 'Restrictions' 'Live policy' $config.Policies.Restrictions 'Missing' $(if($expectConfiguration){'FAIL'}else{'INFO'})}
 else {
     $r=Invoke-GraphGet "$graphRoot/deviceManagement/deviceConfigurations/$($restrictions.id)"
@@ -352,14 +354,15 @@ else {
         @('Wallpaper changes blocked',$true,$r.wallpaperBlockModification),
         @('Other Wi-Fi networks remain allowed',$false,$r.wiFiConnectToAllowedNetworksOnlyForced)
     )){Test-Value 'Restrictions' $test[0] $test[1] $test[2]}
-    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceConfigurations/$($r.id)/assignments");Test-ExactPilotAssignment 'Restrictions' 'Exact assignment scope' $a $pilot.id $expectConfiguration}
+    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceConfigurations/$($r.id)/assignments");Test-ExactPilotAssignment 'Restrictions' 'Exact assignment scope' $a $pilot.id $expectCippConfigurationAssignments}
 }
 
 if(-not $updates){Add-Result 'Updates' 'Live DDM policy' $config.Policies.Updates 'Missing' $(if($expectConfiguration){'FAIL'}else{'INFO'})}
 else {
-    Test-Value 'Updates' 'Concrete type' '#microsoft.graph.deviceManagementConfigurationPolicy' $updates.'@odata.type'
-    Test-Value 'Updates' 'Platform' 'iOS' $updates.platforms
-    Test-Value 'Updates' 'Technology' 'mdm,appleRemoteManagement' $updates.technologies
+    $u=Invoke-GraphGet "$graphRoot/deviceManagement/configurationPolicies/$($updates.id)"
+    Test-Value 'Updates' 'Concrete type' '#microsoft.graph.deviceManagementConfigurationPolicy' $u.'@odata.type'
+    Test-Value 'Updates' 'Platform' 'iOS' $u.platforms
+    Test-Value 'Updates' 'Technology' 'mdm,appleRemoteManagement' $u.technologies
     $settings=Get-GraphCollection "$graphRoot/deviceManagement/configurationPolicies/$($updates.id)/settings"
     $instances=Get-SettingInstances $settings
     $byId=@{};foreach($instance in $instances){$byId[$instance.settingDefinitionId]=$instance}
@@ -369,7 +372,7 @@ else {
     $expectedUpdateIds=@('ddm-latestsoftwareupdate_ddm-latestsoftwareupdate','ddm-latestsoftwareupdate_enforcelatestsoftwareupdateversion','ddm-latestsoftwareupdate_delayindays','ddm-latestsoftwareupdate_installtime')
     $unexpectedUpdateIds=@($instances.settingDefinitionId|Where-Object{$_ -notin $expectedUpdateIds}|Sort-Object -Unique)
     Add-Result 'Updates' 'No unexpected settings' 'Only the four reviewed DDM setting definitions' ($unexpectedUpdateIds -join ', ') $(if($unexpectedUpdateIds.Count){'FAIL'}else{'PASS'})
-    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/configurationPolicies/$($updates.id)/assignments");Test-ExactPilotAssignment 'Updates' 'Exact assignment scope' $a $pilot.id $expectConfiguration}
+    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/configurationPolicies/$($updates.id)/assignments");Test-ExactPilotAssignment 'Updates' 'Exact assignment scope' $a $pilot.id $expectCippConfigurationAssignments}
 }
 
 if(-not $compliance){Add-Result 'Compliance' 'Live policy' $config.Policies.Compliance 'Missing' $(if($expectCompliance){'FAIL'}else{'INFO'})}
