@@ -307,6 +307,7 @@ def check_ios_policy_safety(filename, data):
         expected = {
             "accountBlockModification": True,
             "activationLockAllowWhenSupervised": False,
+            "appStoreBlockUIAppInstallation": True,
             "iCloudBlockBackup": True,
             "iCloudBlockManagedAppsSync": True,
             "iCloudBlockDocumentSync": True,

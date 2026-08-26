@@ -212,6 +212,7 @@ else {
         @('Unmanaged documents allowed in managed apps',$false,$r.documentsBlockUnmanagedDocumentsInManagedApps),
         @('User account changes blocked',$true,$r.accountBlockModification),
         @('User Activation Lock not permitted',$false,$r.activationLockAllowWhenSupervised),
+        @('User App Store installations blocked',$true,$r.appStoreBlockUIAppInstallation),
         @('iCloud backup blocked',$true,$r.iCloudBlockBackup),
         @('iCloud managed-app sync blocked',$true,$r.iCloudBlockManagedAppsSync),
         @('iCloud document sync blocked',$true,$r.iCloudBlockDocumentSync),
