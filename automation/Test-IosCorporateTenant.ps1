@@ -216,6 +216,7 @@ else {
         @('Device-name changes blocked',$true,$r.deviceBlockNameModification),
         @('Personal Hotspot allowed',$false,$r.cellularBlockPersonalHotspot),
         @('Mobile data roaming allowed',$false,$r.cellularBlockDataRoaming),
+        @('Voice-call roaming allowed',$false,$r.cellularBlockVoiceRoaming),
         @('iCloud backup blocked',$true,$r.iCloudBlockBackup),
         @('iCloud managed-app sync blocked',$true,$r.iCloudBlockManagedAppsSync),
         @('iCloud document sync blocked',$true,$r.iCloudBlockDocumentSync),

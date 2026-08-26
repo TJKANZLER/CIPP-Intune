@@ -19,6 +19,7 @@
   "deviceBlockNameModification": true,
   "cellularBlockPersonalHotspot": false,
   "cellularBlockDataRoaming": false,
+  "cellularBlockVoiceRoaming": false,
 
   "airDropBlocked": true,
   "airDropForceUnmanagedDropTarget": true,
