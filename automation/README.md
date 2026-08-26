@@ -107,6 +107,23 @@ Copy `ios-corporate.example.config` outside the public repository. Fill in names
 never put APNs certificate material, ADE `.p7m` files, Apps and Books token files,
 Wi-Fi keys or enrollment payloads in JSON or Git.
 
+Record the exact existing group object IDs in `GroupObjectIds`; the audit rejects a
+same-named replacement. `SupportedModels` is an explicit allow-list of the exact
+model strings returned by Intune. Set `PrerequisiteMaxSyncAgeDays` (normally `7`)
+to the maximum acceptable age of a successful ADE or Apps and Books sync. Record a
+named Apple-account custodian and renewal reminders under `RenewalOwnership`.
+
+After Apps and Books has synced, add each app's `IntuneAppId`, `BundleId` and
+`AppStoreUrl` to the private configuration. These are identifiers, not secrets,
+and let the audit distinguish the intended Apps and Books app from a same-named
+public Store object. Leave them unset only during the prerequisites wave.
+
+The pilot group must contain device objects only. After enrollment, resolve the
+new supervised Entra device by serial number and add that device object to the
+pilot group; place the user in the appropriate role group separately. Record the
+reviewed emergency-access principals and the completed Setup Assistant/MFA/TAP
+test under `ConditionalAccessReview`.
+
 `Wallpaper` is optional. Point `ImagePath` at a private local PNG/JPG/JPEG file
 outside the repository and select `lockScreen`, `homeScreen` or
 `lockAndHomeScreens`. The bootstrap rejects empty files, invalid signatures and

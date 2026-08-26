@@ -120,7 +120,21 @@ function Ensure-Assignment {
         [Parameter(Mandatory)][string]$Label
     )
     $assignments = @(Get-GraphCollection $AssignmentsUri)
-    $sameGroup = @($assignments | Where-Object { $_.target.groupId -eq $GroupId })
+    $sameGroupId = @($assignments | Where-Object { $_.target.groupId -eq $GroupId })
+    $sameGroup = @($sameGroupId | Where-Object { ([string]$_.target.'@odata.type').TrimStart('#') -eq 'microsoft.graph.groupAssignmentTarget' })
+    if ($sameGroupId.Count -ne $sameGroup.Count) {
+        throw "$Label has an exclusion or unsupported target using the expected group ID. Resolve it before rerunning."
+    }
+    if ($Kind -eq 'Policy' -and @($assignments | Where-Object {
+        $_.target.groupId -ne $GroupId -or ([string]$_.target.'@odata.type').TrimStart('#') -ne 'microsoft.graph.groupAssignmentTarget'
+    }).Count) {
+        throw "$Label has an extra, broad, exclusion or unsupported assignment. Resolve it before rerunning."
+    }
+    if ($Kind -eq 'App' -and @($assignments | Where-Object {
+        ([string]$_.target.'@odata.type').TrimStart('#') -in @('microsoft.graph.allLicensedUsersAssignmentTarget','microsoft.graph.allDevicesAssignmentTarget')
+    }).Count) {
+        throw "$Label has an all-users or all-devices assignment. Broad app assignments are not permitted during the pilot."
+    }
     if ($Kind -eq 'App' -and $sameGroup -and $sameGroup.intent -notcontains $Intent) {
         throw "$Label already has a different assignment intent. Resolve it before rerunning."
     }
@@ -174,6 +188,9 @@ foreach ($requiredWifi in @('DisplayName','NetworkName','Ssid')) {
 }
 if ([bool]$config.Wifi.Hidden) { throw 'This corporate baseline requires a visible SSID; Wifi.Hidden must be false.' }
 if ($RotateWifiKey -and -not $Apply) { throw '-RotateWifiKey requires -Apply.' }
+$maxTokenSyncAgeDays = if ($config.PrerequisiteMaxSyncAgeDays) { [int]$config.PrerequisiteMaxSyncAgeDays } else { 7 }
+if ($maxTokenSyncAgeDays -lt 1 -or $maxTokenSyncAgeDays -gt 30) { throw 'PrerequisiteMaxSyncAgeDays must be between 1 and 30.' }
+$syncCutoff = (Get-Date).ToUniversalTime().AddDays(-$maxTokenSyncAgeDays)
 
 $wallpaperEnabled = $null -ne $config.Wallpaper
 $wallpaperPath = $null
@@ -231,8 +248,10 @@ if (-not $apns -or -not $apns.expirationDateTime) {
     $hardBlockers.Add('Apple MDM push certificate')
 } else {
     $expired = [datetime]$apns.expirationDateTime -le (Get-Date).ToUniversalTime()
-    Add-Outcome 'Apple prerequisites' 'APNs push certificate' $(if ($expired) { 'Expired' } else { 'Present' }) "Apple account $($apns.appleIdentifier); expires $($apns.expirationDateTime)"
+    $uploadFailed = [string]$apns.certificateUploadStatus -match 'fail|error'
+    Add-Outcome 'Apple prerequisites' 'APNs push certificate' $(if ($expired) { 'Expired' } elseif ($uploadFailed) { 'Mismatch' } else { 'Present' }) "Apple account $($apns.appleIdentifier); expires $($apns.expirationDateTime); status $($apns.certificateUploadStatus)"
     if ($expired) { $hardBlockers.Add('Expired Apple MDM push certificate') }
+    if ($uploadFailed) { $hardBlockers.Add('Apple MDM push certificate upload/status failure') }
 }
 
 $depTokens = @(Get-GraphCollection "$graphRoot/deviceManagement/depOnboardingSettings")
@@ -242,8 +261,10 @@ if (-not $dep) {
     $hardBlockers.Add('Apple Business Manager ADE token')
 } else {
     $depExpired = [datetime]$dep.tokenExpirationDateTime -le (Get-Date).ToUniversalTime()
-    Add-Outcome 'Apple prerequisites' $config.AdeTokenName $(if ($depExpired) { 'Expired' } else { 'Present' }) "Apple account $($dep.appleIdentifier); expires $($dep.tokenExpirationDateTime); last sync $($dep.lastSuccessfulSyncDateTime)"
+    $depSyncHealthy = $dep.lastSuccessfulSyncDateTime -and [datetime]$dep.lastSuccessfulSyncDateTime -ge $syncCutoff -and [int]$dep.lastSyncErrorCode -eq 0
+    Add-Outcome 'Apple prerequisites' $config.AdeTokenName $(if ($depExpired) { 'Expired' } elseif (-not $depSyncHealthy) { 'Mismatch' } else { 'Present' }) "Apple account $($dep.appleIdentifier); expires $($dep.tokenExpirationDateTime); last sync $($dep.lastSuccessfulSyncDateTime); error $($dep.lastSyncErrorCode)"
     if ($depExpired) { $hardBlockers.Add('Expired ADE token') }
+    if (-not $depSyncHealthy) { $hardBlockers.Add("ADE token has not synchronized successfully within $maxTokenSyncAgeDays days") }
 }
 
 $vppTokens = @(Get-GraphCollection "$graphRoot/deviceAppManagement/vppTokens")
@@ -253,8 +274,10 @@ if (-not $vpp) {
     $hardBlockers.Add('Apple Apps and Books token')
 } else {
     $vppExpired = [datetime]$vpp.expirationDateTime -le (Get-Date).ToUniversalTime()
-    Add-Outcome 'Apple prerequisites' $config.AppsAndBooksTokenName $(if ($vppExpired) { 'Expired' } else { 'Present' }) "Apple account $($vpp.appleId); expires $($vpp.expirationDateTime); last sync $($vpp.lastSyncDateTime)"
+    $vppSyncHealthy = $vpp.lastSyncDateTime -and [datetime]$vpp.lastSyncDateTime -ge $syncCutoff -and [string]$vpp.state -notmatch 'invalid|expired' -and [string]$vpp.lastSyncStatus -notmatch 'fail|error'
+    Add-Outcome 'Apple prerequisites' $config.AppsAndBooksTokenName $(if ($vppExpired) { 'Expired' } elseif (-not $vppSyncHealthy) { 'Mismatch' } else { 'Present' }) "Apple account $($vpp.appleId); expires $($vpp.expirationDateTime); last sync $($vpp.lastSyncDateTime); status $($vpp.lastSyncStatus); state $($vpp.state)"
     if ($vppExpired) { $hardBlockers.Add('Expired Apps and Books token') }
+    if (-not $vppSyncHealthy) { $hardBlockers.Add("Apps and Books token has not synchronized successfully within $maxTokenSyncAgeDays days") }
 }
 
 $profile = $null
@@ -305,15 +328,28 @@ foreach ($check in @(
     @{ Label='Managed updates'; Value=$updates; Type='#microsoft.graph.deviceManagementConfigurationPolicy'; Base="$graphRoot/deviceManagement/configurationPolicies"; ShouldAssign=$true },
     @{ Label='Compliance'; Value=$compliance; Type='#microsoft.graph.iosCompliancePolicy'; Base="$graphRoot/deviceManagement/deviceCompliancePolicies"; ShouldAssign=$ComplianceWave }
 )) {
-    if (-not $check.Value) { Add-Outcome 'CIPP policy' $check.Label 'Missing' 'Deploy through the correct CIPP package'; continue }
+    if (-not $check.Value) {
+        Add-Outcome 'CIPP policy' $check.Label 'Missing' 'Deploy through the correct CIPP package'
+        if ($check.ShouldAssign) { $hardBlockers.Add("Missing CIPP policy: $($check.Label)") }
+        continue
+    }
     if ($check.Value.'@odata.type' -ne $check.Type) { throw "$($check.Label) has concrete type '$($check.Value.'@odata.type')', expected '$($check.Type)'." }
     Add-Outcome 'CIPP policy' $check.Label 'Present' $check.Value.id
     if ($pilot) {
         $assignments = @(Get-GraphCollection "$($check.Base)/$($check.Value.id)/assignments")
-        $assigned = $assignments.target.groupId -contains $pilot.id
+        $directPilot = @($assignments | Where-Object {
+            $_.target.groupId -eq $pilot.id -and
+            ([string]$_.target.'@odata.type').TrimStart('#') -eq 'microsoft.graph.groupAssignmentTarget'
+        })
         $wanted = [bool]$check.ShouldAssign
-        Add-Outcome 'CIPP assignment' "$($check.Label) -> Pilot" $(if ($assigned -eq $wanted) { 'Correct for wave' } else { 'Mismatch' }) "assigned=$assigned; expected=$wanted; remediate with CIPP Standards"
+        $assignmentCorrect = if ($wanted) { $assignments.Count -eq 1 -and $directPilot.Count -eq 1 } else { $assignments.Count -eq 0 }
+        Add-Outcome 'CIPP assignment' "$($check.Label) -> Pilot" $(if ($assignmentCorrect) { 'Correct for wave' } else { 'Mismatch' }) "total=$($assignments.Count); directPilot=$($directPilot.Count); expectedAssigned=$wanted; remediate with CIPP Standards"
+        if (-not $assignmentCorrect) { $hardBlockers.Add("CIPP assignment mismatch: $($check.Label)") }
     }
+}
+
+if ($Apply -and $hardBlockers.Count) {
+    throw "No changes made. Resolve policy prerequisite(s): $($hardBlockers -join '; ')."
 }
 
 if ($wallpaperEnabled -and -not $ComplianceWave) {

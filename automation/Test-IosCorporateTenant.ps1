@@ -13,7 +13,8 @@
 [CmdletBinding(PositionalBinding = $false)]
 param(
     [Parameter(Mandatory)][string]$ConfigPath,
-    [string]$CippConfigPath = (Join-Path ($env:XDG_DATA_HOME ? $env:XDG_DATA_HOME : (Join-Path $HOME '.local/share')) 'cipp-mcp/config.json')
+    [string]$CippConfigPath = (Join-Path ($env:XDG_DATA_HOME ? $env:XDG_DATA_HOME : (Join-Path $HOME '.local/share')) 'cipp-mcp/config.json'),
+    [string]$TemplateRoot = (Split-Path -Parent $PSScriptRoot)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -80,6 +81,46 @@ function Get-SettingInstances {
     Walk $Node
     return @($found)
 }
+function Test-ExpectedProperties {
+    param(
+        [string]$Area,
+        [string]$Check,
+        [Parameter(Mandatory)]$Expected,
+        [Parameter(Mandatory)]$Actual,
+        [string[]]$Skip = @()
+    )
+    $missing = [System.Collections.Generic.List[string]]::new()
+    $different = [System.Collections.Generic.List[string]]::new()
+    $checked = 0
+    foreach ($property in $Expected.PSObject.Properties) {
+        if ($property.Name -in $Skip) { continue }
+        $checked++
+        $actualProperty = $Actual.PSObject.Properties[$property.Name]
+        if ($null -eq $actualProperty) { $missing.Add($property.Name); continue }
+        $expectedJson = $property.Value | ConvertTo-Json -Depth 50 -Compress
+        $actualJson = $actualProperty.Value | ConvertTo-Json -Depth 50 -Compress
+        if ($expectedJson -cne $actualJson) { $different.Add($property.Name) }
+    }
+    $ok = -not $missing.Count -and -not $different.Count
+    $detail = if ($ok) { "$checked configured properties match" } else { "missing=[$($missing -join ', ')]; different=[$($different -join ', ')]" }
+    Add-Result $Area $Check "All $checked configured properties match" $detail $(if($ok){'PASS'}else{'FAIL'})
+}
+function Test-ExactPilotAssignment {
+    param(
+        [string]$Area,
+        [string]$Check,
+        [object[]]$Assignments,
+        [string]$PilotGroupId,
+        [bool]$ShouldAssign
+    )
+    $direct = @($Assignments | Where-Object {
+        $_.target.groupId -eq $PilotGroupId -and
+        ([string]$_.target.'@odata.type').TrimStart('#') -eq 'microsoft.graph.groupAssignmentTarget'
+    })
+    $ok = if ($ShouldAssign) { $Assignments.Count -eq 1 -and $direct.Count -eq 1 } else { $Assignments.Count -eq 0 }
+    $types = @($Assignments | ForEach-Object { ([string]$_.target.'@odata.type').TrimStart('#') }) -join ', '
+    Add-Result $Area $Check $(if($ShouldAssign){'Exactly one direct pilot-group assignment and no extras'}else{'No assignments in this wave'}) "total=$($Assignments.Count); directPilot=$($direct.Count); targetTypes=[$types]" $(if($ok){'PASS'}else{'FAIL'})
+}
 
 function Get-PlainTextSecret {
     param([string]$EncryptedSecret, [string]$ConfigDirectory)
@@ -106,14 +147,30 @@ function Get-CippTemplates {
     } finally { $secret=$null }
     $apiBase = ([string]$settings.CippMcpUrl) -replace '(?i)/api/ExecMcp/?$',''
     $response = Invoke-RestMethod -Method Get -Uri "$apiBase/api/ListIntuneTemplates?View=true" -Headers @{Authorization="Bearer $($token.access_token)";Accept='application/json'}
-    if ($response.Results) { return @($response.Results) }
-    return @($response)
+    if ($response.Results) { return @($response.Results | ForEach-Object { $_ }) }
+    return @($response | ForEach-Object { $_ })
 }
 
 if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { throw "Configuration not found: $ConfigPath" }
 $config = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
 $wave = if ($config.RolloutWave) { [string]$config.RolloutWave } else { 'Prerequisites' }
 if ($wave -notin @('Prerequisites','Configuration','Compliance')) { throw "Invalid RolloutWave '$wave'." }
+$templateFiles = @{
+    Restrictions = Join-Path $TemplateRoot '33-ios-supervised-device-restrictions.json'
+    Updates = Join-Path $TemplateRoot '34-ios-managed-software-updates.json'
+    Compliance = Join-Path $TemplateRoot '03-compliance-ios.json'
+}
+foreach ($entry in $templateFiles.GetEnumerator()) {
+    if (-not (Test-Path -LiteralPath $entry.Value -PathType Leaf)) { throw "Expected $($entry.Key) template not found: $($entry.Value)" }
+}
+$expectedTemplates = @{
+    Restrictions = Get-Content -Raw -LiteralPath $templateFiles.Restrictions | ConvertFrom-Json
+    Updates = Get-Content -Raw -LiteralPath $templateFiles.Updates | ConvertFrom-Json
+    Compliance = Get-Content -Raw -LiteralPath $templateFiles.Compliance | ConvertFrom-Json
+}
+$maxTokenSyncAgeDays = if ($config.PrerequisiteMaxSyncAgeDays) { [int]$config.PrerequisiteMaxSyncAgeDays } else { 7 }
+if ($maxTokenSyncAgeDays -lt 1 -or $maxTokenSyncAgeDays -gt 30) { throw 'PrerequisiteMaxSyncAgeDays must be between 1 and 30.' }
+$syncCutoff = (Get-Date).ToUniversalTime().AddDays(-$maxTokenSyncAgeDays)
 
 $context = Get-MgContext
 $mustConnect = -not $context -or @($scopes | Where-Object { $_ -notin $context.Scopes }).Count -gt 0
@@ -128,7 +185,7 @@ Write-Host "Auditing corporate iOS/iPadOS rollout; expected wave: $wave. No chan
 # Apple prerequisites
 try {
     $apns = Invoke-GraphGet "$graphRoot/deviceManagement/applePushNotificationCertificate"
-    $apnsOk = $apns.expirationDateTime -and [datetime]$apns.expirationDateTime -gt (Get-Date).ToUniversalTime() -and $apns.certificateUploadStatus -notmatch 'fail'
+    $apnsOk = $apns.expirationDateTime -and [datetime]$apns.expirationDateTime -gt (Get-Date).ToUniversalTime() -and $apns.certificateUploadStatus -notmatch 'fail|error'
     Add-Result 'Apple prerequisites' 'APNs certificate' 'Present and unexpired' "Apple account $($apns.appleIdentifier); expires $($apns.expirationDateTime); status $($apns.certificateUploadStatus)" $(if ($apnsOk) {'PASS'} else {'FAIL'})
 } catch { Add-Result 'Apple prerequisites' 'APNs certificate' 'Present and unexpired' 'Missing or Graph returned no certificate object' 'FAIL' }
 
@@ -136,17 +193,23 @@ $depTokens = @(Get-GraphCollection "$graphRoot/deviceManagement/depOnboardingSet
 $dep = Get-OneByName $depTokens $config.AdeTokenName 'ADE token'
 if (-not $dep) { Add-Result 'Apple prerequisites' 'ADE token' $config.AdeTokenName 'Missing' 'FAIL' }
 else {
-    $ok=[datetime]$dep.tokenExpirationDateTime -gt (Get-Date).ToUniversalTime() -and [int]$dep.lastSyncErrorCode -eq 0
-    Add-Result 'Apple prerequisites' 'ADE token' 'Unexpired; last sync successful' "ID $($dep.id); Apple account $($dep.appleIdentifier); expires $($dep.tokenExpirationDateTime); last sync $($dep.lastSuccessfulSyncDateTime); devices $($dep.syncedDeviceCount); error $($dep.lastSyncErrorCode)" $(if($ok){'PASS'}else{'FAIL'})
+    $ok=[datetime]$dep.tokenExpirationDateTime -gt (Get-Date).ToUniversalTime() -and $dep.lastSuccessfulSyncDateTime -and [datetime]$dep.lastSuccessfulSyncDateTime -ge $syncCutoff -and [int]$dep.lastSyncErrorCode -eq 0
+    Add-Result 'Apple prerequisites' 'ADE token' "Unexpired; successful sync within $maxTokenSyncAgeDays days" "ID $($dep.id); Apple account $($dep.appleIdentifier); expires $($dep.tokenExpirationDateTime); last sync $($dep.lastSuccessfulSyncDateTime); devices $($dep.syncedDeviceCount); error $($dep.lastSyncErrorCode)" $(if($ok){'PASS'}else{'FAIL'})
 }
 
 $vppTokens = @(Get-GraphCollection "$graphRoot/deviceAppManagement/vppTokens")
 $vpp = Get-OneByName $vppTokens $config.AppsAndBooksTokenName 'Apps and Books token'
 if (-not $vpp) { Add-Result 'Apple prerequisites' 'Apps and Books token' $config.AppsAndBooksTokenName 'Missing' 'FAIL' }
 else {
-    $ok=[datetime]$vpp.expirationDateTime -gt (Get-Date).ToUniversalTime() -and $vpp.state -notmatch 'invalid|expired'
-    Add-Result 'Apple prerequisites' 'Apps and Books token' 'Unexpired; healthy sync' "ID $($vpp.id); Apple account $($vpp.appleId); organization $($vpp.organizationName); location $($vpp.locationName); expires $($vpp.expirationDateTime); last sync $($vpp.lastSyncDateTime); status $($vpp.lastSyncStatus)" $(if($ok){'PASS'}else{'FAIL'})
+    $ok=[datetime]$vpp.expirationDateTime -gt (Get-Date).ToUniversalTime() -and $vpp.lastSyncDateTime -and [datetime]$vpp.lastSyncDateTime -ge $syncCutoff -and $vpp.state -notmatch 'invalid|expired' -and $vpp.lastSyncStatus -notmatch 'fail|error'
+    Add-Result 'Apple prerequisites' 'Apps and Books token' "Unexpired; successful sync within $maxTokenSyncAgeDays days" "ID $($vpp.id); Apple account $($vpp.appleId); organization $($vpp.organizationName); location $($vpp.locationName); expires $($vpp.expirationDateTime); last sync $($vpp.lastSyncDateTime); status $($vpp.lastSyncStatus)" $(if($ok){'PASS'}else{'FAIL'})
 }
+
+$custodian = [string]$config.RenewalOwnership.AppleAccountCustodian
+$custodianMissing = [string]::IsNullOrWhiteSpace($custodian) -or $custodian -eq 'DECISION_REQUIRED'
+Add-Result 'Apple prerequisites' 'Apple account custodian' 'Named accountable person or controlled role' $custodian $(if ($custodianMissing) { 'WARN' } else { 'PASS' })
+$supportedModels=@($config.SupportedModels|Where-Object{-not[string]::IsNullOrWhiteSpace([string]$_)})
+Add-Result 'Apple prerequisites' 'Supported model inventory' 'At least one exact supported Apple model before configuration wave' "$($supportedModels.Count) configured model(s): $($supportedModels -join ', ')" $(if($supportedModels.Count){'PASS'}elseif($wave-eq'Prerequisites'){'WARN'}else{'FAIL'})
 
 # ADE profile and ABM device inventory
 $profile=$null; $abmDevices=@()
@@ -166,11 +229,12 @@ else {
     Test-Value 'ADE' 'MDM profile mandatory' 'True' ([bool]$profile.isMandatory)
     Test-Value 'ADE' 'MDM profile removal blocked' 'True' ([bool]$profile.profileRemovalDisabled)
     Test-Value 'ADE' 'Single-user, not Shared iPad' 'False' ([bool]$profile.enableSharedIPad)
-    if ($profile.deviceNameTemplate) { Test-Value 'ADE' 'Device naming' $config.DeviceNameTemplate $profile.deviceNameTemplate }
+    Test-Value 'ADE' 'Device naming' $config.DeviceNameTemplate $profile.deviceNameTemplate
 }
 Add-Result 'ADE' 'Available ABM/ADE devices' 'Customer-supported models identified and pilot device assigned' "$($abmDevices.Count) synchronized device(s)" $(if($abmDevices.Count){'INFO'}else{'WARN'})
 foreach ($device in $abmDevices) {
-    Add-Result 'ADE devices' "Serial ending $(([string]$device.serialNumber).Substring([Math]::Max(0,([string]$device.serialNumber).Length-4)))" 'Profile assigned before wipe' "model=$($device.model); enrollment=$($device.enrollmentState); profile=$($device.profileStatus)" 'INFO'
+    $modelAllowed = -not $supportedModels.Count -or $device.model -in $supportedModels
+    Add-Result 'ADE devices' "Serial ending $(([string]$device.serialNumber).Substring([Math]::Max(0,([string]$device.serialNumber).Length-4)))" 'Supported model; intended profile assigned before wipe' "model=$($device.model); supported=$modelAllowed; enrollment=$($device.enrollmentState); profile=$($device.profileStatus)" $(if($modelAllowed){'INFO'}else{'FAIL'})
 }
 
 # Groups
@@ -179,7 +243,11 @@ $groups=@{}
 foreach($pair in @(@('Pilot',$config.PilotGroupName),@('Drivers',$config.DriversGroupName),@('Office',$config.OfficeGroupName)) | Where-Object { $_[1] }){
     $group=Get-OneByName $allGroups $pair[1] 'Security group'; $groups[$pair[0]]=$group
     if(-not $group){Add-Result 'Groups' $pair[1] 'Static security group' 'Missing' 'FAIL'}
-    else {Add-Result 'Groups' $pair[1] 'Static security group' $group.id $(if($group.securityEnabled -and -not $group.mailEnabled -and $group.groupTypes -notcontains 'DynamicMembership'){'PASS'}else{'FAIL'})}
+    else {
+        Add-Result 'Groups' $pair[1] 'Static security group' $group.id $(if($group.securityEnabled -and -not $group.mailEnabled -and $group.groupTypes -notcontains 'DynamicMembership'){'PASS'}else{'FAIL'})
+        $expectedId=$config.GroupObjectIds.$($pair[0])
+        if($expectedId){Test-Value 'Groups' "$($pair[1]) expected object ID" $expectedId $group.id}
+    }
 }
 $pilot=$groups.Pilot
 
@@ -187,9 +255,20 @@ $pilot=$groups.Pilot
 try {
     $templates=Get-CippTemplates
     if($null -eq $templates){throw 'CIPP configuration unavailable'}
-    foreach($name in @($config.Policies.Restrictions,$config.Policies.Updates,$config.Policies.Compliance)){
+    foreach($definition in @(
+        @{Name=$config.Policies.Restrictions;Expected=$expectedTemplates.Restrictions},
+        @{Name=$config.Policies.Updates;Expected=$expectedTemplates.Updates},
+        @{Name=$config.Policies.Compliance;Expected=$expectedTemplates.Compliance}
+    )){
+        $name=$definition.Name;$expected=$definition.Expected
         $matches=@($templates|Where-Object {($_.displayName ?? $_.Displayname ?? $_.name)-eq $name})
         Add-Result 'CIPP templates' $name 'Exactly one saved template; no unintended duplicate' "$($matches.Count) match(es); source $($matches.source -join ','); usage $($matches.usage.Count)" $(if($matches.Count -eq 1){'PASS'}else{'FAIL'})
+        if($matches.Count -eq 1){
+            $saved = $matches[0]
+            $rawJson = if ($saved.RAWJson) { $saved.RAWJson } elseif ($saved.JSON.RAWJson) { $saved.JSON.RAWJson } else { $null }
+            $savedPayload = if ($rawJson -is [string]) { $rawJson | ConvertFrom-Json } elseif ($rawJson) { $rawJson } else { $saved }
+            Test-ExpectedProperties 'CIPP templates' "$name saved payload" $expected $savedPayload @('displayName','name','description')
+        }
     }
 } catch { Add-Result 'CIPP templates' 'Saved-template audit' 'Readable' $_.Exception.Message 'WARN' }
 
@@ -206,6 +285,7 @@ if(-not $restrictions){Add-Result 'Restrictions' 'Live policy' $config.Policies.
 else {
     $r=Invoke-GraphGet "$graphRoot/deviceManagement/deviceConfigurations/$($restrictions.id)"
     Test-Value 'Restrictions' 'Concrete type' '#microsoft.graph.iosGeneralDeviceConfiguration' $r.'@odata.type'
+    Test-ExpectedProperties 'Restrictions' 'Complete configured payload' $expectedTemplates.Restrictions $r @('displayName','description')
     foreach($test in @(
         @('Six-digit passcode',6,$r.passcodeMinimumLength),@('Simple passcodes blocked',$true,$r.passcodeBlockSimple),
         @('Managed documents blocked from unmanaged apps',$true,$r.documentsBlockManagedDocumentsInUnmanagedApps),
@@ -260,12 +340,13 @@ else {
         @('Wallpaper changes blocked',$true,$r.wallpaperBlockModification),
         @('Other Wi-Fi networks remain allowed',$false,$r.wiFiConnectToAllowedNetworksOnlyForced)
     )){Test-Value 'Restrictions' $test[0] $test[1] $test[2]}
-    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceConfigurations/$($r.id)/assignments");$assigned=$a.target.groupId -contains $pilot.id;Test-Value 'Restrictions' 'Pilot assignment' $expectConfiguration $assigned}
+    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceConfigurations/$($r.id)/assignments");Test-ExactPilotAssignment 'Restrictions' 'Exact assignment scope' $a $pilot.id $expectConfiguration}
 }
 
 if(-not $updates){Add-Result 'Updates' 'Live DDM policy' $config.Policies.Updates 'Missing' $(if($expectConfiguration){'FAIL'}else{'INFO'})}
 else {
     Test-Value 'Updates' 'Concrete type' '#microsoft.graph.deviceManagementConfigurationPolicy' $updates.'@odata.type'
+    Test-Value 'Updates' 'Platform' 'iOS' $updates.platforms
     Test-Value 'Updates' 'Technology' 'mdm,appleRemoteManagement' $updates.technologies
     $settings=Get-GraphCollection "$graphRoot/deviceManagement/configurationPolicies/$($updates.id)/settings"
     $instances=Get-SettingInstances $settings
@@ -273,19 +354,27 @@ else {
     Test-Value 'Updates' 'Latest version enforced' 'ddm-latestsoftwareupdate_enforcelatestsoftwareupdateversion_0' $byId['ddm-latestsoftwareupdate_enforcelatestsoftwareupdateversion'].choiceSettingValue.value
     Test-Value 'Updates' 'Deadline after release' 7 $byId['ddm-latestsoftwareupdate_delayindays'].simpleSettingValue.value
     Test-Value 'Updates' 'Install time' '03:00' $byId['ddm-latestsoftwareupdate_installtime'].simpleSettingValue.value
-    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/configurationPolicies/$($updates.id)/assignments");$assigned=$a.target.groupId -contains $pilot.id;Test-Value 'Updates' 'Pilot assignment' $expectConfiguration $assigned}
+    $expectedUpdateIds=@('ddm-latestsoftwareupdate_ddm-latestsoftwareupdate','ddm-latestsoftwareupdate_enforcelatestsoftwareupdateversion','ddm-latestsoftwareupdate_delayindays','ddm-latestsoftwareupdate_installtime')
+    $unexpectedUpdateIds=@($instances.settingDefinitionId|Where-Object{$_ -notin $expectedUpdateIds}|Sort-Object -Unique)
+    Add-Result 'Updates' 'No unexpected settings' 'Only the four reviewed DDM setting definitions' ($unexpectedUpdateIds -join ', ') $(if($unexpectedUpdateIds.Count){'FAIL'}else{'PASS'})
+    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/configurationPolicies/$($updates.id)/assignments");Test-ExactPilotAssignment 'Updates' 'Exact assignment scope' $a $pilot.id $expectConfiguration}
 }
 
 if(-not $compliance){Add-Result 'Compliance' 'Live policy' $config.Policies.Compliance 'Missing' $(if($expectCompliance){'FAIL'}else{'INFO'})}
 else {
     $c=Invoke-GraphGet "$graphRoot/deviceManagement/deviceCompliancePolicies/$($compliance.id)?`$expand=scheduledActionsForRule(`$expand=scheduledActionConfigurations)"
     Test-Value 'Compliance' 'Concrete type' '#microsoft.graph.iosCompliancePolicy' $c.'@odata.type'
+    $expectedComplianceText=Get-Content -Raw -LiteralPath $templateFiles.Compliance
+    $expectedComplianceText=$expectedComplianceText.Replace('%iosminimumosversion%',[string]$config.Compliance.MinimumOsVersion).Replace('%ioscompliancenotificationtemplateid%',[string]$config.Compliance.NotificationTemplateId)
+    $expectedComplianceLive=$expectedComplianceText|ConvertFrom-Json
+    Test-ExpectedProperties 'Compliance' 'Complete configured scalar payload' $expectedComplianceLive $c @('displayName','description','scheduledActionsForRule')
     Test-Value 'Compliance' 'Minimum OS' $config.Compliance.MinimumOsVersion $c.osMinimumVersion
     Test-Value 'Compliance' 'Jailbreak blocked' 'True' ([bool]$c.securityBlockJailbrokenDevices)
     $actions=@($c.scheduledActionsForRule|ForEach-Object{$_.scheduledActionConfigurations})
+    Test-Value 'Compliance' 'Exactly two scheduled actions' 2 $actions.Count
     Test-Value 'Compliance' '24-hour notification' 'True' ([bool]($actions|Where-Object{$_.actionType -eq 'notification' -and [int]$_.gracePeriodHours -eq 24 -and $_.notificationTemplateId -eq $config.Compliance.NotificationTemplateId}))
     Test-Value 'Compliance' '168-hour block' 'True' ([bool]($actions|Where-Object{$_.actionType -eq 'block' -and [int]$_.gracePeriodHours -eq 168}))
-    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceCompliancePolicies/$($c.id)/assignments");$assigned=$a.target.groupId -contains $pilot.id;Test-Value 'Compliance' 'Pilot assignment' $expectCompliance $assigned}
+    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceCompliancePolicies/$($c.id)/assignments");Test-ExactPilotAssignment 'Compliance' 'Exact assignment scope' $a $pilot.id $expectCompliance}
 }
 
 # Optional supervised wallpaper; compare the live binary by hash and never print its content.
@@ -306,7 +395,7 @@ if($config.Wallpaper){
         Test-Value 'Wallpaper' 'MIME type' $expectedMime $liveWallpaper.wallpaperImage.type
         if([string]::IsNullOrWhiteSpace([string]$liveWallpaper.wallpaperImage.value)){Add-Result 'Wallpaper' 'Image hash' $expectedHash 'Graph returned no image content' 'FAIL'}
         else{$liveBytes=[Convert]::FromBase64String([string]$liveWallpaper.wallpaperImage.value);$liveHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($liveBytes)).ToLowerInvariant();Test-Value 'Wallpaper' 'Image SHA256' $expectedHash $liveHash}
-        if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceConfigurations/$($wallpaper.id)/assignments");Test-Value 'Wallpaper' 'Pilot assignment' $expectConfiguration ($a.target.groupId -contains $pilot.id)}
+        if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceConfigurations/$($wallpaper.id)/assignments");Test-ExactPilotAssignment 'Wallpaper' 'Exact assignment scope' $a $pilot.id $expectConfiguration}
     }
 }
 
@@ -321,7 +410,8 @@ else {
     Test-Value 'Wi-Fi' 'Visible SSID' 'False' ([bool]$wifi.connectWhenNetworkNameIsHidden)
     Test-Value 'Wi-Fi' 'No proxy' 'none' $wifi.proxySettings
     Test-Value 'Wi-Fi' 'Private MAC remains enabled' 'False' ([bool]$wifi.disableMacAddressRandomization)
-    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceConfigurations/$($wifi.id)/assignments");Test-Value 'Wi-Fi' 'Pilot assignment' $expectConfiguration ($a.target.groupId -contains $pilot.id)}
+    Test-Value 'Wi-Fi' 'PSK configured without disclosure' 'True' ([bool]$wifi.preSharedKeyIsSet)
+    if($pilot){$a=@(Get-GraphCollection "$graphRoot/deviceManagement/deviceConfigurations/$($wifi.id)/assignments");Test-ExactPilotAssignment 'Wi-Fi' 'Exact assignment scope' $a $pilot.id $expectConfiguration}
 }
 
 $apps=@(Get-GraphCollection "$graphRoot/deviceAppManagement/mobileApps")
@@ -330,8 +420,29 @@ foreach($wanted in @($config.Apps)){
     if(-not $app){Add-Result 'Apps' $wanted.DisplayName 'One iOS Apps and Books app' 'Missing' $(if($expectConfiguration){'FAIL'}else{'INFO'});continue}
     $typeOk=$app.'@odata.type' -eq '#microsoft.graph.iosVppApp' -and (-not $vpp -or $app.vppTokenId -eq $vpp.id) -and [bool]$app.licensingType.supportsDeviceLicensing
     Add-Result 'Apps' "$($wanted.DisplayName) identity" 'iosVppApp linked to expected token; device licensing supported' "ID $($app.id); type $($app.'@odata.type'); VPP $($app.vppTokenId); device licensing=$($app.licensingType.supportsDeviceLicensing)" $(if($typeOk){'PASS'}else{'FAIL'})
+    $identityConfigured=$wanted.IntuneAppId -and $wanted.BundleId -and $wanted.AppStoreUrl
+    Add-Result 'Apps' "$($wanted.DisplayName) expected identity recorded" 'IntuneAppId, BundleId and AppStoreUrl recorded after Apps and Books sync' $(if($identityConfigured){'Configured'}else{'Missing one or more identity fields'}) $(if($identityConfigured){'PASS'}elseif($expectConfiguration){'FAIL'}else{'WARN'})
+    if($identityConfigured){
+        Test-Value 'Apps' "$($wanted.DisplayName) Intune app ID" $wanted.IntuneAppId $app.id
+        Test-Value 'Apps' "$($wanted.DisplayName) bundle ID" $wanted.BundleId $app.bundleId
+        Test-Value 'Apps' "$($wanted.DisplayName) App Store URL" $wanted.AppStoreUrl $app.appStoreUrl
+    }
+    Test-Value 'Apps' "$($wanted.DisplayName) publishing state" 'published' $app.publishingState
+    Add-Result 'Apps' "$($wanted.DisplayName) licence inventory" 'At least one Apps and Books licence' "used=$($app.usedLicenseCount); total=$($app.totalLicenseCount)" $(if([int]$app.totalLicenseCount -gt 0){'PASS'}else{'FAIL'})
     $target=$groups[$wanted.Group]
-    if($target){$expectedRemovable=if($null -ne $wanted.IsRemovable){[bool]$wanted.IsRemovable}else{$wanted.Intent -ne 'required'};$a=@(Get-GraphCollection "$graphRoot/deviceAppManagement/mobileApps/$($app.id)/assignments");$match=$a|Where-Object{$_.target.groupId -eq $target.id -and $_.intent -eq $wanted.Intent -and $_.settings.useDeviceLicensing -and $null -ne $_.settings.isRemovable -and [bool]$_.settings.isRemovable -eq $expectedRemovable};Add-Result 'Apps' "$($wanted.DisplayName) -> $($wanted.Group)" "$($wanted.Intent), device licensed, removable=$expectedRemovable" ([bool]$match) $(if($match){'PASS'}elseif($expectConfiguration){'FAIL'}else{'INFO'})}
+    if($target){
+        $expectedRemovable=if($null -ne $wanted.IsRemovable){[bool]$wanted.IsRemovable}else{$wanted.Intent -ne 'required'}
+        $a=@(Get-GraphCollection "$graphRoot/deviceAppManagement/mobileApps/$($app.id)/assignments")
+        $match=@($a|Where-Object{
+            $_.target.groupId -eq $target.id -and
+            ([string]$_.target.'@odata.type').TrimStart('#') -eq 'microsoft.graph.groupAssignmentTarget' -and
+            $_.intent -eq $wanted.Intent -and $_.settings.useDeviceLicensing -and
+            $null -ne $_.settings.isRemovable -and [bool]$_.settings.isRemovable -eq $expectedRemovable
+        })
+        $broad=@($a|Where-Object{([string]$_.target.'@odata.type').TrimStart('#') -in @('microsoft.graph.allLicensedUsersAssignmentTarget','microsoft.graph.allDevicesAssignmentTarget')})
+        $assignmentCorrect = $match.Count -eq 1 -and $broad.Count -eq 0 -and $a.Count -eq 1
+        Add-Result 'Apps' "$($wanted.DisplayName) -> $($wanted.Group)" "$($wanted.Intent), one direct group target, device licensed, removable=$expectedRemovable; no extra targets" "matching=$($match.Count); broad=$($broad.Count); total=$($a.Count)" $(if ($assignmentCorrect) { 'PASS' } elseif ($expectConfiguration) { 'FAIL' } else { 'INFO' })
+    }
 }
 
 # Enrollment restrictions
@@ -340,16 +451,39 @@ $platformRestriction=@($enrollmentConfigs|Where-Object{$_.deviceEnrollmentConfig
 if($platformRestriction){Add-Result 'Enrollment restrictions' 'Personal iOS MDM enrollment' 'Separate BYOD/MAM project; decision documented' "blocked=$($platformRestriction.iosRestriction.personalDeviceEnrollmentBlocked); policy=$($platformRestriction.displayName)" 'WARN'}
 
 # Pilot devices
-$iosDevices=@(Get-GraphCollection "$graphRoot/deviceManagement/managedDevices?`$filter=operatingSystem eq 'iOS'&`$select=id,deviceName,model,osVersion,complianceState,lastSyncDateTime,userPrincipalName,isSupervised,enrollmentProfileName,deviceEnrollmentType")
-if(-not $iosDevices){Add-Result 'Devices' 'Enrolled iOS/iPadOS pilot' 'At least one healthy pilot before completion' '0 devices' $(if($wave -eq 'Prerequisites'){'WARN'}else{'FAIL'})}
-foreach($d in $iosDevices){$healthy=$d.isSupervised -and $d.enrollmentProfileName -eq $config.EnrollmentProfileName -and $d.complianceState -notin @('noncompliant','unknown');Add-Result 'Devices' $d.deviceName 'Supervised ADE; expected profile; healthy compliance' "$($d.model); iOS $($d.osVersion); supervised=$($d.isSupervised); profile=$($d.enrollmentProfileName); compliance=$($d.complianceState); sync=$($d.lastSyncDateTime)" $(if($healthy){'PASS'}else{'FAIL'})}
+$pilotMembers=if($pilot){@(Get-GraphCollection "$graphRoot/groups/$($pilot.id)/members?`$select=id,displayName,deviceId")}else{@()}
+$nonDevicePilotMembers=@($pilotMembers|Where-Object{([string]$_.'@odata.type').TrimStart('#') -ne 'microsoft.graph.device'})
+Add-Result 'Devices' 'Pilot group membership type' 'Device objects only; no users or other directory objects' "members=$($pilotMembers.Count); nonDevices=$($nonDevicePilotMembers.Count)" $(if($nonDevicePilotMembers.Count){'FAIL'}else{'PASS'})
+$pilotDeviceIds=@($pilotMembers|Where-Object{$_.'@odata.type' -match 'device$'}|ForEach-Object{[string]$_.deviceId}|Where-Object{$_})
+$iosDevices=@(Get-GraphCollection "$graphRoot/deviceManagement/managedDevices?`$filter=operatingSystem eq 'iOS'&`$select=id,azureADDeviceId,deviceName,model,osVersion,complianceState,lastSyncDateTime,userPrincipalName,isSupervised,enrollmentProfileName,deviceEnrollmentType")
+$pilotIosDevices=@($iosDevices|Where-Object{[string]$_.azureADDeviceId -in $pilotDeviceIds})
+Add-Result 'Devices' 'Enrolled iOS/iPadOS pilot' 'At least one managed iOS/iPadOS device that is a member of LAF iOS Pilot' "$($pilotIosDevices.Count) pilot device(s); $($iosDevices.Count) total managed iOS/iPadOS device(s)" $(if($pilotIosDevices.Count){'PASS'}elseif($wave-eq'Prerequisites'){'WARN'}else{'FAIL'})
+foreach($d in $pilotIosDevices){
+    $modelAllowed=-not $supportedModels.Count -or $d.model -in $supportedModels
+    $healthy=$d.isSupervised -and $d.enrollmentProfileName -eq $config.EnrollmentProfileName -and $d.complianceState -notin @('noncompliant','unknown') -and $modelAllowed
+    Add-Result 'Devices' $d.deviceName 'Pilot member; supervised ADE; supported model; expected profile; healthy compliance' "$($d.model); supported=$modelAllowed; iOS $($d.osVersion); supervised=$($d.isSupervised); profile=$($d.enrollmentProfileName); compliance=$($d.complianceState); sync=$($d.lastSyncDateTime)" $(if($healthy){'PASS'}else{'FAIL'})
+}
 
 # Conditional Access and Security Defaults
 $ca=@(Get-GraphCollection "$graphRoot/identity/conditionalAccess/policies")
 $iosCa=@($ca|Where-Object{$_.state -ne 'disabled' -and ((-not $_.conditions.platforms) -or $_.conditions.platforms.includePlatforms -contains 'all' -or $_.conditions.platforms.includePlatforms -contains 'iOS') -and $_.conditions.platforms.excludePlatforms -notcontains 'iOS'})
 $complianceCa=@($iosCa|Where-Object{$_.grantControls.builtInControls -contains 'compliantDevice'})
 Add-Result 'Conditional Access' 'Applicable iOS policies' 'Reviewed' (@($iosCa|ForEach-Object{"$($_.displayName) [$($_.state)]"}) -join '; ') 'INFO'
-Add-Result 'Conditional Access' 'Compliant-device requirement' 'None until pilot healthy; report-only next' (@($complianceCa|ForEach-Object{"$($_.displayName) [$($_.state)]"}) -join '; ') $(if($wave -eq 'Prerequisites' -and @($complianceCa|Where-Object{$_.state -eq 'enabled'}).Count -eq 0){'PASS'}else{'WARN'})
+$enabledComplianceCa=@($complianceCa|Where-Object{$_.state -eq 'enabled'})
+Add-Result 'Conditional Access' 'Enabled compliant-device requirement' 'None until the configuration and compliance pilot is proven; report-only first' (@($enabledComplianceCa|ForEach-Object{$_.displayName}) -join '; ') $(if($enabledComplianceCa.Count){'FAIL'}else{'PASS'})
+$emergencyUserIds=@($config.ConditionalAccessReview.EmergencyAccessUserObjectIds|Where-Object{$_})
+$emergencyGroupIds=@($config.ConditionalAccessReview.EmergencyAccessGroupObjectIds|Where-Object{$_})
+$emergencyRecorded=($emergencyUserIds.Count+$emergencyGroupIds.Count) -gt 0
+Add-Result 'Conditional Access' 'Emergency-access principals recorded' 'At least one reviewed emergency-access user or group object ID' "users=$($emergencyUserIds.Count); groups=$($emergencyGroupIds.Count)" $(if($emergencyRecorded){'PASS'}else{'WARN'})
+if($emergencyRecorded){
+    foreach($policy in @($iosCa|Where-Object{$_.state -eq 'enabled'})){
+        $missingUsers=@($emergencyUserIds|Where-Object{$_ -notin @($policy.conditions.users.excludeUsers)})
+        $missingGroups=@($emergencyGroupIds|Where-Object{$_ -notin @($policy.conditions.users.excludeGroups)})
+        Add-Result 'Conditional Access' "$($policy.displayName) emergency exclusions" 'All recorded emergency users/groups excluded' "missingUsers=$($missingUsers.Count); missingGroups=$($missingGroups.Count)" $(if($missingUsers.Count -or $missingGroups.Count){'FAIL'}else{'PASS'})
+    }
+}
+$enrollmentReview=[bool]$config.ConditionalAccessReview.EnrollmentAndMfaFlowReviewed
+Add-Result 'Conditional Access' 'Enrollment, MFA and TAP flow review' 'Recorded as reviewed after a real Setup Assistant sign-in test' $enrollmentReview $(if($enrollmentReview){'PASS'}else{'WARN'})
 $securityDefaults=Invoke-GraphGet 'https://graph.microsoft.com/v1.0/policies/identitySecurityDefaultsEnforcementPolicy'
 Add-Result 'Conditional Access' 'Security Defaults' 'Known and reviewed' $securityDefaults.isEnabled $(if($securityDefaults.isEnabled){'WARN'}else{'PASS'})
 

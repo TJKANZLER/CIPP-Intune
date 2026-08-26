@@ -135,7 +135,7 @@
       "platform": "iOS/iPadOS (corporate-owned, supervised)",
       "assignOrder": 2,
       "prerequisite": "Use Apple Business Manager Automated Device Enrollment with supervision and Setup Assistant with modern authentication. Assign only to a static pilot group after APNs, ADE and Apps and Books tokens are healthy.",
-      "note": "Level 1/2 core. AirDrop remains available but is treated as unmanaged; screenshots, other Wi-Fi networks, personal Apple Accounts, Find My, Activation Lock and host pairing are not blocked by this profile. Decide those support-sensitive controls after the pilot."
+      "note": "Corporate supervised baseline with documented usability exceptions. Blocks personal Apple Accounts and iCloud services, user-controlled Activation Lock, AirDrop, computer and Apple Watch pairing, unmanaged VPN creation, user App Store installation, device renaming and wallpaper changes. Screenshots, camera, Messages, FaceTime, Bluetooth, other Wi-Fi networks, Personal Hotspot, roaming, Apple media services, local erase and removal of optional apps remain allowed. Review tenant decisions before deployment."
     },
     {
       "file": "34-ios-managed-software-updates.json",
