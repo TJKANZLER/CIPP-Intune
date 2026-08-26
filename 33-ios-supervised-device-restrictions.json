@@ -1,7 +1,7 @@
 {
   "@odata.type": "#microsoft.graph.iosGeneralDeviceConfiguration",
   "displayName": "Baseline - iOS/iPadOS (Supervised) - Device Restrictions",
-  "description": "Level 1/2 baseline for corporate-owned supervised iPhone and iPad devices. Requires a six-digit passcode, protects managed data, blocks untrusted profiles and certificates, restricts USB Files access, blocks user account changes, user-controlled Activation Lock and personal iCloud services, and preserves support-sensitive features such as screenshots, AirDrop, other Wi-Fi networks and host pairing until the customer explicitly decides otherwise.",
+  "description": "Level 1/2 baseline for corporate-owned supervised iPhone and iPad devices. Requires a six-digit passcode, protects managed data, blocks untrusted profiles and certificates, restricts USB Files access, blocks user account changes, user-controlled Activation Lock, personal iCloud services and AirDrop, and preserves support-sensitive features such as screenshots, other Wi-Fi networks and host pairing until the customer explicitly decides otherwise.",
   "roleScopeTagIds": ["0"],
 
   "passcodeRequired": true,
@@ -16,7 +16,7 @@
   "accountBlockModification": true,
   "activationLockAllowWhenSupervised": false,
 
-  "airDropBlocked": false,
+  "airDropBlocked": true,
   "airDropForceUnmanagedDropTarget": true,
   "screenCaptureBlocked": false,
   "siriBlockedWhenLocked": true,

@@ -220,7 +220,7 @@ else {
         @('iCloud Shared Photo Stream blocked',$true,$r.iCloudBlockSharedPhotoStream),
         @('iCloud Private Relay blocked',$true,$r.iCloudPrivateRelayBlocked),
         @('iCloud Keychain sync blocked',$true,$r.keychainBlockCloudSync),
-        @('AirDrop allowed',$false,$r.airDropBlocked),@('AirDrop treated unmanaged',$true,$r.airDropForceUnmanagedDropTarget),
+        @('AirDrop blocked',$true,$r.airDropBlocked),@('AirDrop treated unmanaged',$true,$r.airDropForceUnmanagedDropTarget),
         @('Screenshots allowed',$false,$r.screenCaptureBlocked),@('USB Files access blocked',$true,$r.filesUsbDriveAccessBlocked),
         @('Other Wi-Fi networks remain allowed',$false,$r.wiFiConnectToAllowedNetworksOnlyForced)
     )){Test-Value 'Restrictions' $test[0] $test[1] $test[2]}

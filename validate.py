@@ -315,7 +315,7 @@ def check_ios_policy_safety(filename, data):
             "iCloudBlockSharedPhotoStream": True,
             "iCloudPrivateRelayBlocked": True,
             "keychainBlockCloudSync": True,
-            "airDropBlocked": False,
+            "airDropBlocked": True,
             "airDropForceUnmanagedDropTarget": True,
             "screenCaptureBlocked": False,
             "documentsBlockManagedDocumentsInUnmanagedApps": True,
