@@ -47,6 +47,7 @@
   "proximityBlockSetupToNewDevice": true,
   "filesUsbDriveAccessBlocked": true,
   "hostPairingBlocked": true,
+  "wallpaperBlockModification": true,
 
   "certificatesBlockUntrustedTlsCertificates": true,
   "enterpriseAppBlockTrust": true,

@@ -322,6 +322,7 @@ def check_ios_policy_safety(filename, data):
             "documentsBlockUnmanagedDocumentsInManagedApps": False,
             "filesUsbDriveAccessBlocked": True,
             "hostPairingBlocked": True,
+            "wallpaperBlockModification": True,
             "wiFiConnectOnlyToConfiguredNetworks": False,
             "wiFiConnectToAllowedNetworksOnlyForced": False,
         }
